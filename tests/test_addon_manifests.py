@@ -125,6 +125,17 @@ class TestAddonManifests(unittest.TestCase):
             "build.yaml architectures must match config.yaml arch list",
         )
 
+    def test_changelog_has_current_version_section(self):
+        cfg = load_yaml_simple((ADDON_DIR / "config.yaml").read_text(encoding="utf-8"))
+        version = str(cfg.get("version", ""))
+        self.assertTrue(version, "config.yaml must define a version")
+        changelog = (ADDON_DIR / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertRegex(
+            changelog,
+            rf"(?m)^##\s+{re.escape(version)}\s*$",
+            f"CHANGELOG.md must include a '## {version}' section for the current version",
+        )
+
     def test_dockerfile_requirements(self):
         dockerfile = (ADDON_DIR / "Dockerfile").read_text(encoding="utf-8")
         self.assertIn("BROWSER=/usr/local/bin/xdg-open", dockerfile)

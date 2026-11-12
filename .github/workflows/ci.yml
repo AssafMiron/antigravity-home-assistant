@@ -1,4 +1,4 @@
-name: CI & Test Suite
+name: CI & Release
 
 on:
   push:
@@ -7,6 +7,9 @@ on:
   pull_request:
     branches:
       - main
+
+permissions:
+  contents: write
 
 jobs:
   test:
@@ -32,3 +35,66 @@ jobs:
       - name: Run unit & integration test suite
         run: python3 -m unittest discover -s tests -v
 
+  release:
+    name: Create GitHub Release on Version Bump
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version and changelog notes
+        id: meta
+        run: |
+          python3 - <<'PYEOF'
+          import os
+          import pathlib
+          import re
+          import subprocess
+
+          cfg_text = pathlib.Path("antigravity-terminal/config.yaml").read_text(encoding="utf-8")
+          m = re.search(r'^version:\s*["\']?([^"\'\s]+)["\']?', cfg_text, re.MULTILINE)
+          if not m:
+              raise SystemExit("Could not parse version from antigravity-terminal/config.yaml")
+          version = m.group(1)
+          tag = f"v{version}"
+
+          existing = subprocess.run(
+              ["git", "tag", "--list", tag],
+              capture_output=True,
+              text=True,
+              check=True,
+          ).stdout.strip()
+
+          already_exists = "true" if existing == tag else "false"
+
+          changelog = pathlib.Path("antigravity-terminal/CHANGELOG.md").read_text(encoding="utf-8")
+          section_pattern = re.compile(
+              rf"^##\s+{re.escape(version)}\s*$(.*?)(?=^##\s+|\Z)",
+              re.MULTILINE | re.DOTALL,
+          )
+          sec_match = section_pattern.search(changelog)
+          notes = sec_match.group(1).strip() if sec_match else f"Release {tag}"
+
+          notes_path = pathlib.Path("/tmp/release-notes.md")
+          notes_path.write_text(notes + "\n", encoding="utf-8")
+
+          gh_out = pathlib.Path(os.environ["GITHUB_OUTPUT"])
+          with gh_out.open("a", encoding="utf-8") as f:
+              f.write(f"version={version}\n")
+              f.write(f"tag={tag}\n")
+              f.write(f"already_exists={already_exists}\n")
+          PYEOF
+
+      - name: Create GitHub Release
+        if: steps.meta.outputs.already_exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.meta.outputs.tag }}" \
+            --title "Antigravity Terminal ${{ steps.meta.outputs.tag }}" \
+            --notes-file /tmp/release-notes.md \
+            --target "${{ github.sha }}"
