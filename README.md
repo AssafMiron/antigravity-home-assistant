@@ -1,4 +1,4 @@
-# Antigravity for Home Assistant (`antigravity-home-assistant`)
+# <img src="antigravity-terminal/icon.png" width="36" height="36" align="top" alt="Antigravity Icon" /> Antigravity for Home Assistant (`antigravity-home-assistant`)
 
 [![Home Assistant Add-on](https://img.shields.io/badge/Home%20Assistant-Add--on-41BDF5?logo=home-assistant)](https://github.com/assafmiron/antigravity-home-assistant)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -30,9 +30,9 @@ Inspired by [`heytcass/home-assistant-addons`](https://github.com/heytcass/home-
 
 ## 🚀 Installation
 
-1. In Home Assistant, navigate to **Settings → Add-ons → Add-on Store**.
+1. In Home Assistant, navigate to **Settings → Apps** and click **Install App**.
 2. Click the **⋮ (three dots)** menu in the top-right corner and select **Repositories**.
-3. Add the following repository URL:
+3. Paste the following repository URL and click **Add**:
    ```text
    https://github.com/assafmiron/antigravity-home-assistant
    ```
@@ -60,6 +60,8 @@ antigravity-home-assistant/
 ├── README.md
 └── antigravity-terminal/                   # Antigravity Terminal Add-on
     ├── config.yaml                         # Add-on manifest, Ingress, permissions & schema
+    ├── icon.png                            # Add-on store & dashboard icon
+    ├── logo.png                            # Add-on detail page logo
     ├── build.yaml                          # Multi-arch base image definitions (amd64, aarch64)
     ├── Dockerfile                          # Container build with ttyd, tmux, ha CLI, yq, and agy
     ├── DOCS.md                             # In-app Add-on documentation
