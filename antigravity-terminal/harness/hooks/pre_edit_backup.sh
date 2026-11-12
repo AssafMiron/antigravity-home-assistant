@@ -30,7 +30,8 @@ esac
 
 # Create automatic timestamped backup if file exists and auto_backup is enabled
 if [ "${HA_AUTO_BACKUP:-true}" = "true" ] && [ -f "${TARGET_PATH}" ]; then
-    BACKUP_DIR="/data/backups/$(date +%Y-%m-%d)"
+    BACKUP_ROOT="${HA_BACKUP_ROOT:-/data/backups}"
+    BACKUP_DIR="${BACKUP_ROOT}/$(date +%Y-%m-%d)"
     mkdir -p "${BACKUP_DIR}" 2>/dev/null || true
     SAFE_NAME=$(echo "${TARGET_PATH#/}" | tr '/' '_')
     TIMESTAMP=$(date +%H%M%S)

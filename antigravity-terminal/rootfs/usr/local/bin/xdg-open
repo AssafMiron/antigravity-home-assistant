@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Custom xdg-open / $BROWSER handler for Antigravity Terminal
+# Captures OAuth and external URLs launched by `agy` inside the container,
+# saves the full unbroken URL, and pushes it to the web terminal via OSC 52 & 777.
+# ==============================================================================
+
+URL="${1:-}"
+if [ -z "${URL}" ]; then
+    exit 0
+fi
+
+# Persist the latest URL so helper scripts and the web terminal can access it
+LAST_URL_FILE="${AGY_LAST_URL_FILE:-/tmp/agy-last-url.txt}"
+printf '%s\n' "${URL}" > "${LAST_URL_FILE}"
+chmod 644 "${LAST_URL_FILE}" 2>/dev/null || true
+
+# Encode URL in single-line base64 for safe transport through OSC escape sequences
+B64_URL=$(printf '%s' "${URL}" | base64 | tr -d '\r\n')
+
+# Broadcast OSC 52 (clipboard) and OSC 777 (Antigravity Web UI OAuth helper) to active PTYs
+PTS_TARGETS=(/dev/pts/[0-9]*)
+if [ -n "${AGY_PTS_DIR:-}" ]; then
+    PTS_TARGETS=("${AGY_PTS_DIR}"/*)
+fi
+for pts in "${PTS_TARGETS[@]}"; do
+    if [ -w "${pts}" ]; then
+        printf '\033]52;c;%s\007\033]777;agy-url-b64;%s\007' "${B64_URL}" "${B64_URL}" > "${pts}" 2>/dev/null || true
+    fi
+done
+
+exit 0
+

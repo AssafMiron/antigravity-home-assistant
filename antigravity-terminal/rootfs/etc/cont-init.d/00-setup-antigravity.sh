@@ -75,6 +75,7 @@ USE_TMUX_VAL=$(bashio::config 'use_tmux')
 
 cat <<EOF > /etc/profile.d/antigravity-ha.sh
 export PATH="/root/.local/bin:/usr/local/bin:\${PATH}"
+export BROWSER="/usr/local/bin/xdg-open"
 export SUPERVISOR_TOKEN="${SUPERVISOR_TOKEN:-}"
 export HASSIO_TOKEN="${SUPERVISOR_TOKEN:-}"
 export HA_AUTO_BACKUP="${AUTO_BACKUP_VAL}"
@@ -93,9 +94,12 @@ fi
 
 chmod +x /etc/profile.d/antigravity-ha.sh
 
-# Configure tmux for friendly scrolling, mouse support, and status bar
+# Configure tmux for persistent sessions while keeping native browser mouse selection & clipboard
 cat <<'EOF' > /root/.tmux.conf
-set -g mouse on
+set -g mouse off
+set -g set-clipboard on
+set -as terminal-features ',*:clipboard'
+set -ag terminal-overrides ',*:Ms=\E]52;c;%p2%s\7'
 set -g history-limit 50000
 set -g default-terminal "screen-256color"
 set -g status-bg "#1a73e8"
