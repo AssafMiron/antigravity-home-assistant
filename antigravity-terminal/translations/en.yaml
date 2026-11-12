@@ -1,0 +1,25 @@
+configuration:
+  auto_launch_agy:
+    name: Auto-launch Antigravity CLI
+    description: Automatically start the `agy` CLI when opening the web terminal.
+  agy_auto_update:
+    name: Auto-update Antigravity CLI on startup
+    description: Check for and install the latest version of the Antigravity CLI when the add-on starts.
+  use_tmux:
+    name: Persistent Terminal Session (tmux)
+    description: Wrap the terminal session in tmux so your Antigravity conversation continues even if you close or refresh the browser tab.
+  working_directory:
+    name: Working Directory
+    description: Default directory where the terminal and Antigravity CLI start (usually `/config`).
+  execution_mode:
+    name: Default Execution Mode
+    description: Initial execution mode for Antigravity (`default`, `accept-edits`, `auto`, or `plan`). You can also toggle modes anytime with Shift+Tab.
+  enable_safety_hooks:
+    name: Enable Home Assistant Safety Hooks
+    description: Enable pre-edit and post-edit hooks that protect secrets, back up modified YAML files, and validate configuration with `ha core check`.
+  auto_backup_before_edit:
+    name: Auto-backup YAML Files Before Edit
+    description: Automatically save timestamped backups of YAML files in `/data/backups` before Antigravity modifies them.
+  gemini_api_key:
+    name: Gemini API Key (Optional)
+    description: Optional Google AI Studio API key (`GEMINI_API_KEY`). Leave blank to sign in interactively with your Google AI plan via OAuth in the terminal.

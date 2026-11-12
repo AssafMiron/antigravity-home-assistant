@@ -1,0 +1,39 @@
+{
+  "ha-session-context": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "/root/.gemini/config/hooks/session_start.sh",
+        "timeout": 10
+      }
+    ]
+  },
+  "ha-pre-edit-safety": {
+    "PreToolUse": [
+      {
+        "matcher": "edit_file|write_file|replace_file_content|multi_replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/root/.gemini/config/hooks/pre_edit_backup.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "ha-post-edit-validate": {
+    "PostToolUse": [
+      {
+        "matcher": "edit_file|write_file|replace_file_content|multi_replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/root/.gemini/config/hooks/post_edit_check.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+#!/usr/bin/with-contenv bashio
+# ==============================================================================
+# Home Assistant Add-on: Antigravity Terminal
+# Runs the ttyd web terminal server on Ingress port 7681
+# ==============================================================================
+
+bashio::log.info "Starting Antigravity Web Terminal (ttyd) on port 7681..."
+
+# Source environment variables
+if [ -f /etc/profile.d/antigravity-ha.sh ]; then
+    # shellcheck disable=SC1091
+    source /etc/profile.d/antigravity-ha.sh
+fi
+
+WORK_DIR=$(bashio::config 'working_directory')
+if [ ! -d "${WORK_DIR}" ]; then
+    WORK_DIR="/config"
+fi
+
+exec ttyd \
+    --port 7681 \
+    --interface 0.0.0.0 \
+    --writable \
+    --cwd "${WORK_DIR}" \
+    -t fontSize=14 \
+    -t fontFamily="'JetBrains Mono', 'Fira Code', monospace" \
+    -t theme='{"background":"#0f1419","foreground":"#e6edf3","cursor":"#58a6ff","selectionBackground":"#264f78"}' \
+    /usr/local/bin/agy-entrypoint

@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# ha-api — Lightweight helper CLI for Home Assistant Core REST API
+# Uses SUPERVISOR_TOKEN to query states, entities, services, config, and logs.
+# ==============================================================================
+set -e
+
+API_BASE="http://supervisor/core/api"
+SUP_BASE="http://supervisor"
+
+if [ -z "${SUPERVISOR_TOKEN}" ] && [ -f /etc/profile.d/antigravity-ha.sh ]; then
+    # shellcheck disable=SC1091
+    source /etc/profile.d/antigravity-ha.sh
+fi
+
+if [ -z "${SUPERVISOR_TOKEN}" ]; then
+    echo "Error: SUPERVISOR_TOKEN is not set. Ensure homeassistant_api: true is enabled." >&2
+    exit 1
+fi
+
+auth_curl() {
+    curl -fsSL \
+        -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+        -H "Content-Type: application/json" \
+        "$@"
+}
+
+usage() {
+    cat <<EOF
+Usage: ha-api <command> [arguments]
+
+Commands:
+  states [domain_or_filter]      List entity states (compact table: entity_id, state, friendly_name)
+  state <entity_id>              Get full JSON state and attributes for a single entity
+  entities [domain]              List entity IDs (optionally filtered by domain, e.g., 'light', 'sensor')
+  services [domain]              List available services (optionally filtered by domain)
+  call <domain.service> ['json'] Call a Home Assistant service with optional JSON payload
+  template '<jinja_template>'    Render a Home Assistant Jinja2 template against live state
+  check                          Validate Home Assistant configuration via Core API
+  reload <target>                Reload config: automations | scripts | scenes | groups | themes | all
+  error-log                      Fetch the Home Assistant Core error log
+  dashboards                     List Lovelace dashboards and views
+  raw <GET|POST> <endpoint> [d]  Make a raw request to http://supervisor/core/api/<endpoint>
+
+Examples:
+  ha-api states light
+  ha-api state sensor.living_room_temperature
+  ha-api call light.turn_on '{"entity_id": "light.kitchen", "brightness_pct": 80}'
+  ha-api template '{{ states("sensor.outside_temp") }}'
+  ha-api reload automations
+EOF
+}
+
+CMD="${1:-help}"
+shift || true
+
+case "${CMD}" in
+    states)
+        FILTER="${1:-}"
+        if [ -n "${FILTER}" ]; then
+            auth_curl "${API_BASE}/states" | jq -r --arg f "${FILTER}" '
+                .[] | select(.entity_id | contains($f)) |
+                "\(.entity_id)\t\(.state)\t\(.attributes.friendly_name // "")"
+            ' | column -t -s $'\t'
+        else
+            auth_curl "${API_BASE}/states" | jq -r '
+                .[] | "\(.entity_id)\t\(.state)\t\(.attributes.friendly_name // "")"
+            ' | column -t -s $'\t'
+        fi
+        ;;
+
+    state)
+        ENTITY_ID="${1:?Error: entity_id required (e.g. ha-api state light.living_room)}"
+        auth_curl "${API_BASE}/states/${ENTITY_ID}" | jq .
+        ;;
+
+    entities)
+        DOMAIN="${1:-}"
+        if [ -n "${DOMAIN}" ]; then
+            auth_curl "${API_BASE}/states" | jq -r --arg d "${DOMAIN}." '
+                .[].entity_id | select(startswith($d))
+            ' | sort
+        else
+            auth_curl "${API_BASE}/states" | jq -r '.[].entity_id' | sort
+        fi
+        ;;
+
+    services)
+        DOMAIN="${1:-}"
+        if [ -n "${DOMAIN}" ]; then
+            auth_curl "${API_BASE}/services" | jq --arg d "${DOMAIN}" '.[] | select(.domain == $d)'
+        else
+            auth_curl "${API_BASE}/services" | jq -r '.[] | "\(.domain): \(.services | keys | join(", "))"'
+        fi
+        ;;
+
+    call)
+        TARGET="${1:?Error: domain.service required (e.g. light.turn_on)}"
+        PAYLOAD="${2:-{}}"
+        DOMAIN="${TARGET%%.*}"
+        SERVICE="${TARGET#*.}"
+        auth_curl -X POST -d "${PAYLOAD}" "${API_BASE}/services/${DOMAIN}/${SERVICE}" | jq .
+        ;;
+
+    template)
+        TPL="${1:?Error: Jinja2 template string required}"
+        JSON_BODY=$(jq -n --arg t "${TPL}" '{template: $t}')
+        auth_curl -X POST -d "${JSON_BODY}" "${API_BASE}/template"
+        echo ""
+        ;;
+
+    check)
+        auth_curl -X POST "${API_BASE}/config/core/check_config" | jq .
+        ;;
+
+    reload)
+        TARGET="${1:-automations}"
+        case "${TARGET}" in
+            automations|automation)
+                auth_curl -X POST "${API_BASE}/services/automation/reload" | jq .
+                ;;
+            scripts|script)
+                auth_curl -X POST "${API_BASE}/services/script/reload" | jq .
+                ;;
+            scenes|scene)
+                auth_curl -X POST "${API_BASE}/services/scene/reload" | jq .
+                ;;
+            groups|group)
+                auth_curl -X POST "${API_BASE}/services/group/reload" | jq .
+                ;;
+            themes|theme)
+                auth_curl -X POST "${API_BASE}/services/frontend/reload_themes" | jq .
+                ;;
+            all)
+                auth_curl -X POST "${API_BASE}/services/homeassistant/reload_all" | jq .
+                ;;
+            *)
+                echo "Unknown reload target '${TARGET}'. Use: automations, scripts, scenes, groups, themes, or all." >&2
+                exit 1
+                ;;
+        esac
+        ;;
+
+    error-log|logs)
+        auth_curl "${API_BASE}/error_log"
+        ;;
+
+    dashboards)
+        echo "=== YAML & Storage Lovelace Dashboards ==="
+        ls -la /config/ui-lovelace*.yaml /config/dashboards/*.yaml 2>/dev/null || true
+        ls -la /config/.storage/lovelace* 2>/dev/null || true
+        ;;
+
+    raw)
+        METHOD="${1:-GET}"
+        ENDPOINT="${2:?Error: API endpoint required (e.g. config)}"
+        DATA="${3:-}"
+        ENDPOINT="${ENDPOINT#/}"
+        if [ -n "${DATA}" ]; then
+            auth_curl -X "${METHOD}" -d "${DATA}" "${API_BASE}/${ENDPOINT}"
+        else
+            auth_curl -X "${METHOD}" "${API_BASE}/${ENDPOINT}"
+        fi
+        ;;
+
+    help|--help|-h|*)
+        usage
+        ;;
+esac
