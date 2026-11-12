@@ -5,27 +5,31 @@
 # ==============================================================================
 set -e
 
-OUT_HTML="/usr/share/ttyd/index.html"
-HELPER_JS="/usr/share/ttyd/agy-ttyd-helper.js"
-TMP_PORT=17689
+OUT_HTML="${TTYD_OUT_HTML:-/usr/share/ttyd/index.html}"
+HELPER_JS="${TTYD_HELPER_JS:-/usr/share/ttyd/agy-ttyd-helper.js}"
+TMP_PORT="${TTYD_TMP_PORT:-17689}"
+TTYD_BIN="${TTYD_BIN:-ttyd}"
 
 if [ ! -f "${HELPER_JS}" ]; then
     exit 0
 fi
 
-mkdir -p /usr/share/ttyd
+mkdir -p "$(dirname "${OUT_HTML}")"
 
-ttyd --port "${TMP_PORT}" --interface 127.0.0.1 /bin/true >/dev/null 2>&1 &
-TTYD_PID=$!
+if [ -z "${TTYD_RAW_RESPONSE_FILE:-}" ]; then
+    "${TTYD_BIN}" --port "${TMP_PORT}" --interface 127.0.0.1 /bin/true >/dev/null 2>&1 &
+    TTYD_PID=$!
 
-cleanup() {
-    kill "${TTYD_PID}" 2>/dev/null || true
-    wait "${TTYD_PID}" 2>/dev/null || true
-}
-trap cleanup EXIT
+    cleanup() {
+        kill "${TTYD_PID}" 2>/dev/null || true
+        wait "${TTYD_PID}" 2>/dev/null || true
+    }
+    trap cleanup EXIT
+fi
 
 python3 - "${TMP_PORT}" "${HELPER_JS}" "${OUT_HTML}" <<'PYEOF'
 import gzip
+import os
 import pathlib
 import sys
 import time
@@ -34,16 +38,20 @@ import urllib.request
 port = sys.argv[1]
 helper_path = pathlib.Path(sys.argv[2])
 out_path = pathlib.Path(sys.argv[3])
+raw_response_file = os.environ.get("TTYD_RAW_RESPONSE_FILE", "")
 
 raw_data = None
-for _ in range(30):
-    try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=2) as resp:
-            raw_data = resp.read()
-            if raw_data:
-                break
-    except Exception:
-        time.sleep(0.1)
+if raw_response_file:
+    raw_data = pathlib.Path(raw_response_file).read_bytes()
+else:
+    for _ in range(30):
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=2) as resp:
+                raw_data = resp.read()
+                if raw_data:
+                    break
+        except Exception:
+            time.sleep(0.1)
 
 if not raw_data:
     sys.exit(1)

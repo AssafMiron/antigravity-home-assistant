@@ -5,8 +5,8 @@
 # ==============================================================================
 set -e
 
-API_BASE="http://supervisor/core/api"
-SUP_BASE="http://supervisor"
+API_BASE="${HA_API_BASE:-http://supervisor/core/api}"
+SUP_BASE="${HA_SUP_BASE:-http://supervisor}"
 
 if [ -z "${SUPERVISOR_TOKEN}" ] && [ -f /etc/profile.d/antigravity-ha.sh ]; then
     # shellcheck disable=SC1091

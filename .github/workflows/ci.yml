@@ -1,0 +1,33 @@
+name: CI & Test Suite
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Run Add-on & Harness Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends jq bsdmainutils
+          pip install pyyaml
+
+      - name: Validate JavaScript syntax
+        run: node --check antigravity-terminal/rootfs/usr/share/ttyd/agy-ttyd-helper.js
+
+      - name: Run unit & integration test suite
+        run: python3 -m unittest discover -s tests -v
