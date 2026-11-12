@@ -17,12 +17,24 @@ if [ ! -d "${WORK_DIR}" ]; then
     WORK_DIR="/config"
 fi
 
+# Ensure enhanced ttyd index.html (multi-line OAuth URL handler & HTTP clipboard fix) exists
+if [ ! -s /usr/share/ttyd/index.html ] && [ -x /usr/local/bin/prepare-ttyd-ui ]; then
+    /usr/local/bin/prepare-ttyd-ui || bashio::log.warning "Fallback to built-in ttyd UI."
+fi
+
+INDEX_ARGS=()
+if [ -s /usr/share/ttyd/index.html ]; then
+    INDEX_ARGS=(--index /usr/share/ttyd/index.html)
+fi
+
 exec ttyd \
     --port 7681 \
     --interface 0.0.0.0 \
     --writable \
     --cwd "${WORK_DIR}" \
+    "${INDEX_ARGS[@]}" \
     -t fontSize=14 \
-    -t fontFamily="'JetBrains Mono', 'Fira Code', monospace" \
+    -t fontFamily="Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace" \
+    -t macOptionClickForcesSelection=true \
     -t theme='{"background":"#0f1419","foreground":"#e6edf3","cursor":"#58a6ff","selectionBackground":"#264f78"}' \
     /usr/local/bin/agy-entrypoint

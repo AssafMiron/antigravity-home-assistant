@@ -87,9 +87,13 @@ antigravity-home-assistant/
         ├── etc/services.d/ttyd/
         │   ├── run                         # ttyd Ingress service runner
         │   └── finish
-        └── usr/local/bin/
-            ├── agy-entrypoint              # Terminal welcome banner, tmux & agy launcher
-            └── ha-api                      # Live Home Assistant REST API CLI helper
+        ├── usr/local/bin/
+        │   ├── agy-entrypoint              # Terminal welcome banner, tmux & agy launcher
+        │   ├── ha-api                      # Live Home Assistant REST API CLI helper
+        │   ├── prepare-ttyd-ui             # Injects OAuth & clipboard helper into ttyd UI
+        │   └── xdg-open                    # Captures OAuth URLs & broadcasts to web terminal
+        └── usr/share/ttyd/
+            └── agy-ttyd-helper.js          # Multi-line OAuth link, banner & HTTP clipboard fix
 ```
 
 ## 📄 License

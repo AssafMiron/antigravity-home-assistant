@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Extracts ttyd's built-in index.html and injects agy-ttyd-helper.js
+# so multi-line OAuth links, HTTP clipboard copy, and the OAuth helper bar work.
+# ==============================================================================
+set -e
+
+OUT_HTML="/usr/share/ttyd/index.html"
+HELPER_JS="/usr/share/ttyd/agy-ttyd-helper.js"
+TMP_PORT=17689
+
+if [ ! -f "${HELPER_JS}" ]; then
+    exit 0
+fi
+
+mkdir -p /usr/share/ttyd
+
+ttyd --port "${TMP_PORT}" --interface 127.0.0.1 /bin/true >/dev/null 2>&1 &
+TTYD_PID=$!
+
+cleanup() {
+    kill "${TTYD_PID}" 2>/dev/null || true
+    wait "${TTYD_PID}" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+python3 - "${TMP_PORT}" "${HELPER_JS}" "${OUT_HTML}" <<'PYEOF'
+import gzip
+import pathlib
+import sys
+import time
+import urllib.request
+
+port = sys.argv[1]
+helper_path = pathlib.Path(sys.argv[2])
+out_path = pathlib.Path(sys.argv[3])
+
+raw_data = None
+for _ in range(30):
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=2) as resp:
+            raw_data = resp.read()
+            if raw_data:
+                break
+    except Exception:
+        time.sleep(0.1)
+
+if not raw_data:
+    sys.exit(1)
+
+if raw_data[:2] == b"\x1f\x8b":
+    raw_data = gzip.decompress(raw_data)
+
+html = raw_data.decode("utf-8", errors="replace")
+helper_js = helper_path.read_text(encoding="utf-8")
+injection = f"<script>\n{helper_js}\n</script>\n</body>"
+
+if "</body>" in html:
+    patched = html.replace("</body>", injection, 1)
+else:
+    patched = html + f"\n<script>\n{helper_js}\n</script>\n"
+
+out_path.write_text(patched, encoding="utf-8")
+PYEOF

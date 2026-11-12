@@ -41,6 +41,7 @@ ENV LANG=en_US.UTF-8 \
     LANGUAGE=en_US:en \
     LC_ALL=en_US.UTF-8 \
     HOME=/root \
+    BROWSER=/usr/local/bin/xdg-open \
     PATH="/root/.local/bin:/usr/local/bin:${PATH}"
 
 # Install ttyd binary for web terminal over Ingress
@@ -84,7 +85,12 @@ RUN chmod +x \
     /etc/services.d/ttyd/finish \
     /usr/local/bin/agy-entrypoint \
     /usr/local/bin/ha-api \
+    /usr/local/bin/xdg-open \
+    /usr/local/bin/prepare-ttyd-ui \
     /opt/ha-agy-harness/hooks/*.sh \
-    /opt/ha-agy-harness/skills/ha-diagnostics/scripts/*.sh
+    /opt/ha-agy-harness/skills/ha-diagnostics/scripts/*.sh \
+    && ln -sf /usr/local/bin/xdg-open /usr/local/bin/sensible-browser \
+    && ln -sf /usr/local/bin/xdg-open /usr/local/bin/x-www-browser \
+    && /usr/local/bin/prepare-ttyd-ui || true
 
 WORKDIR /config
