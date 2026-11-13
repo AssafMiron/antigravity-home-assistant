@@ -1,5 +1,11 @@
-ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base-debian:bookworm
-FROM ${BUILD_FROM}
+ARG BUILD_ARCH=amd64
+FROM ghcr.io/home-assistant/${BUILD_ARCH}-base-debian:bookworm
+
+LABEL \
+    org.opencontainers.image.title="Home Assistant Add-on: Antigravity Terminal" \
+    org.opencontainers.image.description="Google Antigravity CLI web terminal with Home Assistant harness for automations, dashboards, and diagnostics." \
+    org.opencontainers.image.source="https://github.com/assafmiron/antigravity-home-assistant" \
+    org.opencontainers.image.licenses="MIT"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

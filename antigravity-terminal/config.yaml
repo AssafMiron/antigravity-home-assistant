@@ -1,5 +1,5 @@
 name: Antigravity Terminal
-version: "1.0.2"
+version: "1.0.3"
 slug: antigravity_terminal
 description: "Google Antigravity CLI web terminal for Home Assistant — build automations, Lovelace dashboards, and troubleshoot issues directly in HA."
 url: "https://github.com/assafmiron/antigravity-home-assistant"
@@ -18,7 +18,7 @@ hassio_api: true
 hassio_role: manager
 map:
   - homeassistant_config:rw
-  - addon_config:rw
+  - app_config:rw
   - share:rw
   - ssl:ro
   - backup:rw

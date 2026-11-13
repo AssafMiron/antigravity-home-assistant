@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.3
+
+- Migrated container build parameters (`FROM` multi-arch base image selection and OCI `LABEL` metadata) directly into `Dockerfile` and removed the deprecated `build.yaml` file.
+- Updated `config.yaml` folder mapping from legacy `addon_config:rw` to `app_config:rw` for Home Assistant 2026 Supervisor compatibility.
+
 ## 1.0.2
 
 - Reverted browser auto-open (`xdg-open` / `$BROWSER`) and auto-copy-on-select behaviors that caused the CLI OAuth flow and Home Assistant UI to stall.

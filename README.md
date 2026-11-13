@@ -62,7 +62,6 @@ antigravity-home-assistant/
     ├── config.yaml                         # Add-on manifest, Ingress, permissions & schema
     ├── icon.png                            # Add-on store & dashboard icon
     ├── logo.png                            # Add-on detail page logo
-    ├── build.yaml                          # Multi-arch base image definitions (amd64, aarch64)
     ├── Dockerfile                          # Container build with ttyd, tmux, ha CLI, yq, and agy
     ├── DOCS.md                             # In-app Add-on documentation
     ├── CHANGELOG.md                        # Release history
