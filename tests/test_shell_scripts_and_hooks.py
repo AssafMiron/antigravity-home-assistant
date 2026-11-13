@@ -23,6 +23,7 @@ class TestShellScriptsAndHooks(unittest.TestCase):
             ADDON_DIR / "rootfs/usr/local/bin/ha-api",
             ADDON_DIR / "rootfs/usr/local/bin/login-url-watcher",
             ADDON_DIR / "rootfs/usr/local/bin/prepare-ttyd-ui",
+            ADDON_DIR / "rootfs/usr/local/bin/register-ha-sidebar-icon",
             ADDON_DIR / "harness/hooks/session_start.sh",
             ADDON_DIR / "harness/hooks/pre_edit_backup.sh",
             ADDON_DIR / "harness/hooks/post_edit_check.sh",

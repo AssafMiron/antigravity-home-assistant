@@ -30,7 +30,9 @@ jobs:
           pip install pyyaml
 
       - name: Validate JavaScript syntax
-        run: node --check antigravity-terminal/rootfs/usr/share/ttyd/agy-ttyd-helper.js
+        run: |
+          node --check antigravity-terminal/rootfs/usr/share/ttyd/agy-ttyd-helper.js
+          node --check antigravity-terminal/rootfs/usr/share/ttyd/agy-ha-sidebar-icon.js
 
       - name: Run unit & integration test suite
         run: python3 -m unittest discover -s tests -v

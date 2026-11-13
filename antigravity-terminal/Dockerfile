@@ -96,6 +96,7 @@ RUN chmod +x \
     /usr/local/bin/ha-api \
     /usr/local/bin/login-url-watcher \
     /usr/local/bin/prepare-ttyd-ui \
+    /usr/local/bin/register-ha-sidebar-icon \
     /opt/ha-agy-harness/hooks/*.sh \
     /opt/ha-agy-harness/skills/ha-diagnostics/scripts/*.sh \
     && /usr/local/bin/prepare-ttyd-ui || true

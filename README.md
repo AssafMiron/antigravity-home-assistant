@@ -91,8 +91,10 @@ antigravity-home-assistant/
         │   ├── agy-login-url               # Extracts & unwraps OAuth login URL from tmux
         │   ├── ha-api                      # Live Home Assistant REST API CLI helper
         │   ├── login-url-watcher           # Delivers OAuth login URL as HA notification
-        │   └── prepare-ttyd-ui             # Injects multi-line URL & OSC 52 helper into ttyd UI
+        │   ├── prepare-ttyd-ui             # Injects multi-line URL & OSC 52 helper into ttyd UI
+        │   └── register-ha-sidebar-icon    # Registers custom Antigravity icon in HA sidebar
         └── usr/share/ttyd/
+            ├── agy-ha-sidebar-icon.js      # Custom Antigravity vector icon for HA sidebar
             └── agy-ttyd-helper.js          # Multi-line OAuth link & OSC 52 clipboard helper
 ```
 

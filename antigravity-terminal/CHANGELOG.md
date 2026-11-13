@@ -2,6 +2,7 @@
 
 ## 1.0.3
 
+- Added custom **Antigravity sidebar icon** (`agy:antigravity` vector arch logo) in the Home Assistant sidebar via both same-origin Ingress injection and automatic Lovelace frontend module registration (`/local/agy-ha-sidebar-icon.js`).
 - Migrated container build parameters (`FROM` multi-arch base image selection and OCI `LABEL` metadata) directly into `Dockerfile` and removed the deprecated `build.yaml` file.
 - Updated `config.yaml` folder mapping from legacy `addon_config:rw` to `app_config:rw` for Home Assistant 2026 Supervisor compatibility.
 

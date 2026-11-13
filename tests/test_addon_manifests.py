@@ -151,6 +151,7 @@ class TestAddonManifests(unittest.TestCase):
         self.assertIn("/usr/local/bin/agy-login-url", dockerfile)
         self.assertIn("/usr/local/bin/login-url-watcher", dockerfile)
         self.assertIn("/usr/local/bin/prepare-ttyd-ui", dockerfile)
+        self.assertIn("/usr/local/bin/register-ha-sidebar-icon", dockerfile)
         self.assertIn("/usr/local/bin/agy-entrypoint", dockerfile)
         self.assertIn("/usr/local/bin/ha-api", dockerfile)
 

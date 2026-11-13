@@ -51,7 +51,7 @@ if [ ! -x "/root/.local/bin/agy" ] && ! command -v agy >/dev/null 2>&1; then
     fi
 elif [ "${AGY_AUTO_UPDATE}" = "true" ]; then
     bashio::log.info "Checking for Antigravity CLI updates in background..."
-    (install_agy_safely || true) &
+    (install_agy_safely || true) </dev/null >/dev/null 2>&1 &
 fi
 
 # 3. Install the Home Assistant Harness into ~/.gemini/config/

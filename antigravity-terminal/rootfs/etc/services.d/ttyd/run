@@ -23,6 +23,11 @@ if [ -z "${GEMINI_API_KEY:-}" ] && [ -x /usr/local/bin/login-url-watcher ]; then
     (/usr/local/bin/login-url-watcher >/dev/null 2>&1 || true) &
 fi
 
+# Register custom Antigravity sidebar icon in Home Assistant frontend
+if [ -x /usr/local/bin/register-ha-sidebar-icon ]; then
+    (/usr/local/bin/register-ha-sidebar-icon >/dev/null 2>&1 || true) &
+fi
+
 # Ensure enhanced ttyd index.html (multi-line OAuth URL link provider & OSC 52 clipboard) exists
 if [ ! -s /usr/share/ttyd/index.html ] && [ -x /usr/local/bin/prepare-ttyd-ui ]; then
     /usr/local/bin/prepare-ttyd-ui || bashio::log.warning "Fallback to built-in ttyd UI."
