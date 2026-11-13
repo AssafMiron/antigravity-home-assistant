@@ -20,7 +20,10 @@ if [ -n "${SUPERVISOR_TOKEN}" ]; then
     ENTITY_COUNT=$(curl -fsSL -m 3 -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" http://supervisor/core/api/states 2>/dev/null | jq 'length' 2>/dev/null || echo "unknown")
 fi
 
-MSG="Connected to live Home Assistant instance (Core version: ${HA_VERSION}, Total Entities: ${ENTITY_COUNT}, Config Dir: /config). Use 'ha-api' to query live entity states/services and 'ha-api reload <target>' after editing YAML."
+HA_CONF_DIR="/homeassistant"
+[ ! -d "${HA_CONF_DIR}" ] && [ -d "/config" ] && HA_CONF_DIR="/config"
+
+MSG="Connected to live Home Assistant instance (Core version: ${HA_VERSION}, Total Entities: ${ENTITY_COUNT}, Config Dir: ${HA_CONF_DIR}). Note: 'ha-api' and 'ha' CLI commands require BypassSandbox: true for network access. Use 'ha-api' to query live entity states/services and 'ha-api reload <target>' after editing YAML."
 
 jq -n --arg msg "${MSG}" '{
   injectSteps: [

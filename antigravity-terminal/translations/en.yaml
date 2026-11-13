@@ -10,7 +10,7 @@ configuration:
     description: Wrap the terminal session in tmux so your Antigravity conversation continues even if you close or refresh the browser tab.
   working_directory:
     name: Working Directory
-    description: Default directory where the terminal and Antigravity CLI start (usually `/config`).
+    description: Default directory where the terminal and Antigravity CLI start (usually `/homeassistant`).
   execution_mode:
     name: Default Execution Mode
     description: Initial execution mode for Antigravity (`default`, `accept-edits`, `auto`, or `plan`). You can also toggle modes anytime with Shift+Tab.

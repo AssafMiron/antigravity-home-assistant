@@ -13,7 +13,8 @@ Your mission is to help the user design, build, debug, and optimize:
 ## 1. Environment & Directory Layout
 
 You are operating inside the Home Assistant Add-on container with direct access to:
-- **`/config`**: The live Home Assistant configuration directory (default working directory).
+- **`/homeassistant`**: The live Home Assistant configuration directory (default working directory).
+  > **IMPORTANT**: In Home Assistant Supervised / OS add-ons, the user's configuration files are mounted from `homeassistant_config:rw` directly to **`/homeassistant`** (NOT `/config`). A `/config` symlink points to `/homeassistant` for backward compatibility, but always look for and edit files under `/homeassistant/`.
   - `configuration.yaml`: Main entry point. Always check how files are included (`!include`, `!include_dir_merge_list`, `!include_dir_named`, `packages:`) before creating or editing files.
   - `automations.yaml` (or `automations/` directory): Automation definitions.
   - `scripts.yaml` (or `scripts/` directory): Script definitions.
@@ -27,7 +28,17 @@ You are operating inside the Home Assistant Add-on container with direct access 
 
 ---
 
-## 2. Live Home Assistant CLI & API Tools
+## 2. Sandbox Execution Rules (CLI & Network Access)
+
+When executing terminal commands (such as via `run_command`):
+- **Always use `BypassSandbox: true` for `ha-api`, `ha`, and network calls**:
+  Inside this add-on container environment, `ha-api` and `ha` communicate with the Home Assistant Supervisor and Core REST APIs (`http://supervisor/core/api`) over container networking. The standard local sandbox blocks network access and its Unix socket resets (`recvmsg: connection reset by peer`), causing commands to fail on the first attempt and requiring a prompt retry.
+  👉 **Rule**: Always execute `ha-api`, `ha`, `curl`, and network commands with `BypassSandbox: true` immediately on the first attempt to avoid failed commands and extra user approval steps.
+- **Local file operations**: Local commands (e.g. `yamllint`, `jq`, `grep`, `cat`) can run in the standard shell environment or with `BypassSandbox: true`.
+
+---
+
+## 3. Live Home Assistant CLI & API Tools
 
 You have direct access to two powerful CLI tools pre-authenticated with `SUPERVISOR_TOKEN`:
 
@@ -51,10 +62,10 @@ Always inspect live entities, states, and services **before** writing automation
 
 ---
 
-## 3. Core Operating Principles & Best Practices
+## 4. Core Operating Principles & Best Practices
 
 1. **Never Guess Entity IDs**:
-   - Before writing any automation, script, or dashboard card, run `ha-api states <keyword>` or `ha-api entities <domain>` to verify the exact `entity_id` and its attributes.
+   - Before writing any automation, script, or dashboard card, run `ha-api states <keyword>` or `ha-api entities <domain>` (with `BypassSandbox: true`) to verify the exact `entity_id` and its attributes.
 2. **Use Modern Home Assistant Syntax (2024.10+ / 2025 / 2026+)**:
    - In automations, prefer modern plural keys (`triggers:`, `conditions:`, `actions:`) and `trigger:` (instead of legacy `platform:`) and `action:` (instead of legacy `service:`), while staying consistent with the user's existing file style.
    - Always target `entity_id`, `device_id`, or `area_id` under `target:`.
@@ -64,5 +75,5 @@ Always inspect live entities, states, and services **before** writing automation
    - After editing any configuration YAML file, verify syntax (`yamllint` or `ha core check` / `ha-api check`).
    - Prefer hot-reloading (`ha-api reload automations`, `ha-api reload scripts`, `ha-api reload scenes`) over restarting Home Assistant whenever possible.
 4. **Safety First**:
-   - Never expose contents of `/config/secrets.yaml`.
+   - Never expose contents of `secrets.yaml` (`/homeassistant/secrets.yaml`).
    - Before making large structural refactors (e.g., migrating `configuration.yaml` to packages or modifying `.storage/lovelace*`), verify a backup exists in `/data/backups/`.

@@ -7,15 +7,21 @@ HELPER_JS_PATH = (
     REPO_ROOT
     / "antigravity-terminal/rootfs/usr/share/ttyd/agy-ttyd-helper.js"
 )
+SIDEBAR_ICON_JS_PATH = (
+    REPO_ROOT
+    / "antigravity-terminal/rootfs/usr/share/ttyd/agy-ha-sidebar-icon.js"
+)
 
 
 class TestAgyTtydHelper(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.js_source = HELPER_JS_PATH.read_text(encoding="utf-8")
+        cls.sidebar_js_source = SIDEBAR_ICON_JS_PATH.read_text(encoding="utf-8")
 
     def test_helper_js_exists_and_contains_core_components_without_auto_open_or_auto_copy(self):
         self.assertTrue(HELPER_JS_PATH.is_file())
+        self.assertTrue(SIDEBAR_ICON_JS_PATH.is_file())
         required_identifiers = [
             "unwrapIfMultilineUrl",
             "copyWithExecCommand",
@@ -26,9 +32,15 @@ class TestAgyTtydHelper(unittest.TestCase):
             "openUrlSafely",
             "registerOscHandler",
             "registerLinkProvider",
+            "ANTIGRAVITY_SVG_PATH",
+            "applyIconToHaSidebar",
+            "customIconsets",
         ]
         for ident in required_identifiers:
             self.assertIn(ident, self.js_source, f"Missing identifier in agy-ttyd-helper.js: {ident}")
+
+        for ident in ("ANTIGRAVITY_SVG_PATH", "applyIconToHaSidebar", "customIconsets", "agy:antigravity"):
+            self.assertIn(ident, self.sidebar_js_source, f"Missing identifier in agy-ha-sidebar-icon.js: {ident}")
 
         # Ensure removed problematic behaviors (auto-copy on select, floating banner, OSC 777, Window Proxy) are absent
         forbidden_identifiers = [

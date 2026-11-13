@@ -14,7 +14,9 @@ if [ "${1:-}" = "--print-only" ]; then
     shift
 fi
 
-OUT="${1:-/config/agy-login-url.txt}"
+DEFAULT_OUT="/homeassistant/agy-login-url.txt"
+[ ! -d "/homeassistant" ] && [ -d "/config" ] && DEFAULT_OUT="/config/agy-login-url.txt"
+OUT="${1:-${DEFAULT_OUT}}"
 TMUX_SESSION="${AGY_TMUX_SESSION:-antigravity}"
 
 capture_pane_text() {

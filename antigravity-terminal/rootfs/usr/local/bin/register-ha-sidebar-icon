@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Installs the Antigravity custom sidebar icon script into /config/www/ and
+# idempotently registers it as a Home Assistant Lovelace frontend module so the
+# Antigravity icon appears in the HA sidebar across all pages.
+# ==============================================================================
+set -u
+
+ICON_SRC="${AGY_SIDEBAR_ICON_SRC:-/usr/share/ttyd/agy-ha-sidebar-icon.js}"
+WWW_DIR="${HA_WWW_DIR:-/homeassistant/www}"
+[ ! -d "$(dirname "${WWW_DIR}")" ] && [ -d /config ] && WWW_DIR="/config/www"
+ICON_DEST="${WWW_DIR}/agy-ha-sidebar-icon.js"
+RESOURCE_URL="/local/agy-ha-sidebar-icon.js"
+TOKEN="${SUPERVISOR_TOKEN:-${HASSIO_TOKEN:-}}"
+WS_HOST="${HA_WS_HOST:-supervisor}"
+WS_PORT="${HA_WS_PORT:-80}"
+WS_PATH="${HA_WS_PATH:-/core/websocket}"
+
+if [ ! -f "${ICON_SRC}" ]; then
+    exit 0
+fi
+
+# 1. Copy the static JS module into /config/www/ if /config exists
+if [ -d "$(dirname "${WWW_DIR}")" ]; then
+    mkdir -p "${WWW_DIR}" 2>/dev/null || true
+    cp -f "${ICON_SRC}" "${ICON_DEST}" 2>/dev/null || true
+fi
+
+if [ -z "${TOKEN}" ]; then
+    exit 0
+fi
+
+# 2. Idempotently register /local/agy-ha-sidebar-icon.js in Lovelace resources via HA WebSocket API
+register_via_ws() {
+    python3 - "${WS_HOST}" "${WS_PORT}" "${WS_PATH}" "${TOKEN}" "${RESOURCE_URL}" <<'PYEOF'
+import base64
+import json
+import os
+import socket
+import struct
+import sys
+
+host = sys.argv[1]
+port = int(sys.argv[2])
+path = sys.argv[3]
+token = sys.argv[4]
+resource_url = sys.argv[5]
+
+
+def send_ws_text(sock: socket.socket, text: str) -> None:
+    payload = text.encode("utf-8")
+    mask_key = os.urandom(4)
+    header = bytearray([0x81])  # FIN + text frame
+    length = len(payload)
+    if length < 126:
+        header.append(0x80 | length)
+    elif length < 65536:
+        header.append(0x80 | 126)
+        header.extend(struct.pack("!H", length))
+    else:
+        header.append(0x80 | 127)
+        header.extend(struct.pack("!Q", length))
+    masked = bytes(b ^ mask_key[i % 4] for i, b in enumerate(payload))
+    sock.sendall(bytes(header) + mask_key + masked)
+
+
+def recv_exact(sock: socket.socket, n: int) -> bytes:
+    buf = bytearray()
+    while len(buf) < n:
+        chunk = sock.recv(n - len(buf))
+        if not chunk:
+            raise EOFError("WebSocket closed")
+        buf.extend(chunk)
+    return bytes(buf)
+
+
+def recv_ws_json(sock: socket.socket) -> dict:
+    while True:
+        b1, b2 = recv_exact(sock, 2)
+        opcode = b1 & 0x0F
+        masked = (b2 & 0x80) != 0
+        length = b2 & 0x7F
+        if length == 126:
+            (length,) = struct.unpack("!H", recv_exact(sock, 2))
+        elif length == 127:
+            (length,) = struct.unpack("!Q", recv_exact(sock, 8))
+        mask_key = recv_exact(sock, 4) if masked else b""
+        data = recv_exact(sock, length)
+        if masked:
+            data = bytes(b ^ mask_key[i % 4] for i, b in enumerate(data))
+        if opcode == 0x8:  # Close
+            raise EOFError("WebSocket closed by server")
+        if opcode == 0x9:  # Ping -> Pong
+            sock.sendall(bytes([0x8A, 0x80]) + os.urandom(4))
+            continue
+        if opcode == 0x1:
+            return json.loads(data.decode("utf-8"))
+
+
+with socket.create_connection((host, port), timeout=5) as sock:
+    key = base64.b64encode(os.urandom(16)).decode("ascii")
+    req = (
+        f"GET {path} HTTP/1.1\r\n"
+        f"Host: {host}:{port}\r\n"
+        f"Upgrade: websocket\r\n"
+        f"Connection: Upgrade\r\n"
+        f"Sec-WebSocket-Key: {key}\r\n"
+        f"Sec-WebSocket-Version: 13\r\n\r\n"
+    )
+    sock.sendall(req.encode("ascii"))
+    resp = b""
+    while b"\r\n\r\n" not in resp:
+        chunk = sock.recv(1024)
+        if not chunk:
+            sys.exit(1)
+        resp += chunk
+    if b" 101 " not in resp.split(b"\r\n", 1)[0]:
+        sys.exit(1)
+
+    # Read auth_required
+    msg = recv_ws_json(sock)
+    if msg.get("type") != "auth_required":
+        sys.exit(1)
+
+    send_ws_text(sock, json.dumps({"type": "auth", "access_token": token}))
+    auth_res = recv_ws_json(sock)
+    if auth_res.get("type") != "auth_ok":
+        sys.exit(1)
+
+    # Fetch existing Lovelace resources
+    send_ws_text(sock, json.dumps({"id": 1, "type": "lovelace/resources"}))
+    res_list_msg = recv_ws_json(sock)
+    if not res_list_msg.get("success"):
+        sys.exit(0)
+
+    resources = res_list_msg.get("result") or []
+    already_registered = any(
+        isinstance(item, dict) and "agy-ha-sidebar-icon.js" in str(item.get("url", ""))
+        for item in resources
+    )
+    if not already_registered:
+        send_ws_text(
+            sock,
+            json.dumps(
+                {
+                    "id": 2,
+                    "type": "lovelace/resources/create",
+                    "res_type": "module",
+                    "url": resource_url,
+                }
+            ),
+        )
+        recv_ws_json(sock)
+PYEOF
+}
+
+for _ in 1 2 3; do
+    if register_via_ws 2>/dev/null; then
+        exit 0
+    fi
+    sleep 3
+done
+
+exit 0

@@ -1,7 +1,7 @@
 # Home Assistant YAML & Architecture Rules
 
 ## File Inclusion Patterns
-Always inspect `/config/configuration.yaml` first to see how the user organizes their setup:
+Always inspect `/homeassistant/configuration.yaml` (or `/config/configuration.yaml`) first to see how the user organizes their setup:
 - `!include filename.yaml`: Inserts the contents of `filename.yaml` directly at that key.
 - `!include_dir_list dir/`: Each file in `dir/` is a single list item (e.g., a single automation per file).
 - `!include_dir_merge_list dir/`: Each file in `dir/` contains a list of items that are merged into one list.

@@ -25,7 +25,7 @@ Run the bundled diagnostic script to get an instant overview of Home Assistant h
    ```
 2. Run `yamllint` on modified YAML files to catch indentation or duplicate key issues:
    ```bash
-   yamllint /config/automations.yaml
+   yamllint /homeassistant/automations.yaml
    ```
 
 ### B. Unavailable / Unknown Entities
@@ -33,9 +33,9 @@ Run the bundled diagnostic script to get an instant overview of Home Assistant h
    ```bash
    ha-api states | awk '$2 == "unavailable" || $2 == "unknown"'
    ```
-2. Cross-reference those entity IDs against `/config/automations.yaml`, `/config/scripts.yaml`, and dashboard files using `rg`:
+2. Cross-reference those entity IDs against `/homeassistant/automations.yaml`, `/homeassistant/scripts.yaml`, and dashboard files using `rg`:
    ```bash
-   rg "<entity_id>" /config/*.yaml /config/automations* /config/dashboards*
+   rg "<entity_id>" /homeassistant/*.yaml /homeassistant/automations* /homeassistant/dashboards*
    ```
 
 ### C. Error Log & Integration Troubleshooting
@@ -43,18 +43,18 @@ Run the bundled diagnostic script to get an instant overview of Home Assistant h
    ```bash
    ha-api error-log | tail -n 100
    ```
-2. Filter for `ERROR` or `WARNING` lines in `/config/home-assistant.log`:
+2. Filter for `ERROR` or `WARNING` lines in `/homeassistant/home-assistant.log`:
    ```bash
-   rg -i "error|warning|exception" /config/home-assistant.log | tail -n 80
+   rg -i "error|warning|exception" /homeassistant/home-assistant.log | tail -n 80
    ```
 
 ### D. Recorder Database Size & High-Frequency Entities
 If the user reports slow history/logbook loading or disk space issues:
-1. Check `/config/home-assistant_v2.db` size:
+1. Check `/homeassistant/home-assistant_v2.db` size:
    ```bash
-   ls -lh /config/home-assistant_v2.db*
+   ls -lh /homeassistant/home-assistant_v2.db*
    ```
 2. Query top noisy entities in SQLite (read-only):
    ```bash
-   sqlite3 -readonly /config/home-assistant_v2.db "SELECT sm.entity_id, COUNT(*) as cnt FROM states s JOIN states_meta sm ON s.metadata_id = sm.metadata_id GROUP BY s.metadata_id ORDER BY cnt DESC LIMIT 15;"
+   sqlite3 -readonly /homeassistant/home-assistant_v2.db "SELECT sm.entity_id, COUNT(*) as cnt FROM states s JOIN states_meta sm ON s.metadata_id = sm.metadata_id GROUP BY s.metadata_id ORDER BY cnt DESC LIMIT 15;"
    ```

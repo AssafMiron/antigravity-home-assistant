@@ -62,7 +62,6 @@ antigravity-home-assistant/
     ├── config.yaml                         # Add-on manifest, Ingress, permissions & schema
     ├── icon.png                            # Add-on store & dashboard icon
     ├── logo.png                            # Add-on detail page logo
-    ├── build.yaml                          # Multi-arch base image definitions (amd64, aarch64)
     ├── Dockerfile                          # Container build with ttyd, tmux, ha CLI, yq, and agy
     ├── DOCS.md                             # In-app Add-on documentation
     ├── CHANGELOG.md                        # Release history
@@ -92,8 +91,10 @@ antigravity-home-assistant/
         │   ├── agy-login-url               # Extracts & unwraps OAuth login URL from tmux
         │   ├── ha-api                      # Live Home Assistant REST API CLI helper
         │   ├── login-url-watcher           # Delivers OAuth login URL as HA notification
-        │   └── prepare-ttyd-ui             # Injects multi-line URL & OSC 52 helper into ttyd UI
+        │   ├── prepare-ttyd-ui             # Injects multi-line URL & OSC 52 helper into ttyd UI
+        │   └── register-ha-sidebar-icon    # Registers custom Antigravity icon in HA sidebar
         └── usr/share/ttyd/
+            ├── agy-ha-sidebar-icon.js      # Custom Antigravity vector icon for HA sidebar
             └── agy-ttyd-helper.js          # Multi-line OAuth link & OSC 52 clipboard helper
 ```
 

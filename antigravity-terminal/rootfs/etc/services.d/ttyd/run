@@ -13,7 +13,9 @@ if [ -f /etc/profile.d/antigravity-ha.sh ]; then
 fi
 
 WORK_DIR=$(bashio::config 'working_directory')
-if [ ! -d "${WORK_DIR}" ]; then
+if [ -d "/homeassistant" ] && { [ ! -d "${WORK_DIR}" ] || { [ "${WORK_DIR}" = "/config" ] && [ ! -f "/config/configuration.yaml" ]; }; }; then
+    WORK_DIR="/homeassistant"
+elif [ ! -d "${WORK_DIR}" ]; then
     WORK_DIR="/config"
 fi
 
@@ -21,6 +23,11 @@ fi
 if [ -z "${GEMINI_API_KEY:-}" ] && [ -x /usr/local/bin/login-url-watcher ]; then
     bashio::log.info "Starting OAuth login URL notification watcher in background..."
     (/usr/local/bin/login-url-watcher >/dev/null 2>&1 || true) &
+fi
+
+# Register custom Antigravity sidebar icon in Home Assistant frontend
+if [ -x /usr/local/bin/register-ha-sidebar-icon ]; then
+    (/usr/local/bin/register-ha-sidebar-icon >/dev/null 2>&1 || true) &
 fi
 
 # Ensure enhanced ttyd index.html (multi-line OAuth URL link provider & OSC 52 clipboard) exists

@@ -23,6 +23,7 @@ class TestShellScriptsAndHooks(unittest.TestCase):
             ADDON_DIR / "rootfs/usr/local/bin/ha-api",
             ADDON_DIR / "rootfs/usr/local/bin/login-url-watcher",
             ADDON_DIR / "rootfs/usr/local/bin/prepare-ttyd-ui",
+            ADDON_DIR / "rootfs/usr/local/bin/register-ha-sidebar-icon",
             ADDON_DIR / "harness/hooks/session_start.sh",
             ADDON_DIR / "harness/hooks/pre_edit_backup.sh",
             ADDON_DIR / "harness/hooks/post_edit_check.sh",
@@ -240,6 +241,14 @@ class TestShellScriptsAndHooks(unittest.TestCase):
             res = subprocess.run([str(ha_api), "states", "light"], env=env, capture_output=True, text=True, check=True)
             self.assertIn("light.kitchen", res.stdout)
             self.assertNotIn("sensor.temp", res.stdout)
+
+            # states filtered without column utility (awk fallback)
+            env_nocol = env.copy()
+            env_nocol["HA_API_NO_COLUMN"] = "1"
+            res_nocol = subprocess.run([str(ha_api), "states", "light"], env=env_nocol, capture_output=True, text=True, check=True)
+            self.assertIn("light.kitchen", res_nocol.stdout)
+            self.assertIn("Kitchen Light", res_nocol.stdout)
+            self.assertNotIn("sensor.temp", res_nocol.stdout)
 
             # single entity state
             res = subprocess.run([str(ha_api), "state", "light.kitchen"], env=env, capture_output=True, text=True, check=True)

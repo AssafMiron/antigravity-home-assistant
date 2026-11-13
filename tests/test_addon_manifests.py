@@ -116,13 +116,18 @@ class TestAddonManifests(unittest.TestCase):
             "translations/en.yaml configuration keys must match config.yaml options",
         )
 
-    def test_build_yaml_matches_config_arch(self):
+    def test_no_deprecated_build_yaml_or_legacy_map(self):
         cfg = load_yaml_simple((ADDON_DIR / "config.yaml").read_text(encoding="utf-8"))
-        build = load_yaml_simple((ADDON_DIR / "build.yaml").read_text(encoding="utf-8"))
-        self.assertEqual(
-            set(cfg.get("arch", [])),
-            set(build.get("build_from", {}).keys()),
-            "build.yaml architectures must match config.yaml arch list",
+        self.assertFalse(
+            (ADDON_DIR / "build.yaml").exists(),
+            "build.yaml is deprecated in Home Assistant Supervisor; move parameters into Dockerfile",
+        )
+        mapped_folders = cfg.get("map", [])
+        self.assertIn("app_config:rw", mapped_folders)
+        self.assertNotIn(
+            "addon_config:rw",
+            mapped_folders,
+            "config.yaml must use 'app_config:rw' instead of legacy 'addon_config:rw'",
         )
 
     def test_changelog_has_current_version_section(self):
@@ -138,13 +143,19 @@ class TestAddonManifests(unittest.TestCase):
 
     def test_dockerfile_requirements(self):
         dockerfile = (ADDON_DIR / "Dockerfile").read_text(encoding="utf-8")
+        self.assertIn("FROM ghcr.io/home-assistant/${BUILD_ARCH}-base-debian:bookworm", dockerfile)
+        self.assertIn("org.opencontainers.image.title=", dockerfile)
+        self.assertIn("org.opencontainers.image.source=", dockerfile)
         self.assertNotIn("BROWSER=", dockerfile)
         self.assertNotIn("xdg-open", dockerfile)
         self.assertIn("/usr/local/bin/agy-login-url", dockerfile)
         self.assertIn("/usr/local/bin/login-url-watcher", dockerfile)
         self.assertIn("/usr/local/bin/prepare-ttyd-ui", dockerfile)
+        self.assertIn("/usr/local/bin/register-ha-sidebar-icon", dockerfile)
         self.assertIn("/usr/local/bin/agy-entrypoint", dockerfile)
         self.assertIn("/usr/local/bin/ha-api", dockerfile)
+        self.assertIn("bsdextrautils", dockerfile)
+        self.assertIn("WORKDIR /homeassistant", dockerfile)
 
     def test_hooks_json_and_scripts_exist(self):
         hooks_json_path = ADDON_DIR / "harness" / "hooks.json"

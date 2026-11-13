@@ -9,8 +9,9 @@ if [ -f /etc/profile.d/antigravity-ha.sh ]; then
     source /etc/profile.d/antigravity-ha.sh
 fi
 
-WORK_DIR="${AGY_WORK_DIR:-/config}"
-cd "${WORK_DIR}" 2>/dev/null || cd /config || true
+WORK_DIR="${AGY_WORK_DIR:-/homeassistant}"
+[ ! -d "${WORK_DIR}" ] && [ -d /config ] && WORK_DIR="/config"
+cd "${WORK_DIR}" 2>/dev/null || cd /homeassistant 2>/dev/null || cd /config || true
 
 # If tmux is enabled and we are not already inside tmux, attach or create session
 if [ "${AGY_USE_TMUX}" = "true" ] && [ -z "${TMUX}" ]; then

@@ -21,7 +21,7 @@
 | `auto_launch_agy` | `true` | Automatically start the `agy` CLI when opening the web terminal. |
 | `agy_auto_update` | `true` | Automatically check for and install the latest `agy` CLI on add-on startup. |
 | `use_tmux` | `true` | Keep your terminal session persistent in `tmux` so closing or refreshing the browser tab does not interrupt Antigravity. |
-| `working_directory` | `/config` | Default directory where the terminal and Antigravity start. |
+| `working_directory` | `/homeassistant` | Default directory where the terminal and Antigravity start. |
 | `execution_mode` | `default` | Initial execution mode (`default`, `accept-edits`, `auto`, or `plan`). Press `Shift+Tab` inside `agy` to cycle modes anytime. |
 | `enable_safety_hooks` | `true` | Enable Home Assistant lifecycle hooks (`SessionStart` context injection + `PreToolUse` YAML backup & registry protection). |
 | `auto_backup_before_edit` | `true` | Automatically save timestamped backups of modified files under `/data/backups/YYYY-MM-DD/`. |
@@ -49,4 +49,4 @@ ha-api reload automations
 
 ## Restoring Automatic Backups
 
-Whenever Antigravity edits an existing file in `/config`, a timestamped backup is automatically saved to `/data/backups/<YYYY-MM-DD>/` inside the add-on container before the edit is applied.
+Whenever Antigravity edits an existing file in `/homeassistant`, a timestamped backup is automatically saved to `/data/backups/<YYYY-MM-DD>/` inside the add-on container before the edit is applied.

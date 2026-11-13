@@ -51,7 +51,7 @@ if [ ! -x "/root/.local/bin/agy" ] && ! command -v agy >/dev/null 2>&1; then
     fi
 elif [ "${AGY_AUTO_UPDATE}" = "true" ]; then
     bashio::log.info "Checking for Antigravity CLI updates in background..."
-    (install_agy_safely || true) &
+    (install_agy_safely || true) </dev/null >/dev/null 2>&1 &
 fi
 
 # 3. Install the Home Assistant Harness into ~/.gemini/config/
@@ -85,6 +85,18 @@ WORK_DIR_VAL=$(bashio::config 'working_directory')
 AUTO_LAUNCH_VAL=$(bashio::config 'auto_launch_agy')
 USE_TMUX_VAL=$(bashio::config 'use_tmux')
 
+# Ensure live Home Assistant config mount (/homeassistant) is used and symlink /config for compatibility
+if [ -d "/homeassistant" ]; then
+    if [ ! -e "/config" ]; then
+        ln -s /homeassistant /config 2>/dev/null || true
+    elif [ -d "/config" ] && [ ! -f "/config/configuration.yaml" ]; then
+        rmdir /config 2>/dev/null && ln -s /homeassistant /config 2>/dev/null || true
+    fi
+    if [ "${WORK_DIR_VAL}" = "/config" ] && [ ! -f "/config/configuration.yaml" ]; then
+        WORK_DIR_VAL="/homeassistant"
+    fi
+fi
+
 cat <<EOF > /etc/profile.d/antigravity-ha.sh
 export PATH="/root/.local/bin:/usr/local/bin:\${PATH}"
 export SUPERVISOR_TOKEN="${SUPERVISOR_TOKEN:-}"
@@ -106,7 +118,7 @@ fi
 chmod +x /etc/profile.d/antigravity-ha.sh
 
 # Configure tmux for persistent sessions while keeping native browser mouse selection & OSC 52 clipboard
-cat <<'EOF' > /root/.tmux.conf
+cat <<EOF > /root/.tmux.conf
 set -g mouse off
 set -g set-clipboard on
 set -g allow-passthrough on
@@ -118,7 +130,7 @@ set -g status-bg "#1a73e8"
 set -g status-fg "#ffffff"
 set -g status-left " [Antigravity HA] "
 set -g status-left-length 20
-set -g status-right " /config | %H:%M "
+set -g status-right " ${WORK_DIR_VAL} | %H:%M "
 EOF
 
 bashio::log.info "Antigravity Terminal initialization complete."

@@ -26,8 +26,8 @@ Before writing any YAML, discover the exact entities and services in the user's 
    ```
 
 ## Step 2: Check Existing Automation Structure
-1. Inspect `/config/configuration.yaml` to see how `automation:` and `script:` are included (e.g. `automation: !include automations.yaml` vs split directories/packages).
-2. Read existing entries in `/config/automations.yaml` (or the relevant package file) to avoid duplicate `id` or `alias` values and to see the user's conventions.
+1. Inspect `/homeassistant/configuration.yaml` to see how `automation:` and `script:` are included (e.g. `automation: !include automations.yaml` vs split directories/packages).
+2. Read existing entries in `/homeassistant/automations.yaml` (or the relevant package file) to avoid duplicate `id` or `alias` values and to see the user's conventions.
 
 ## Step 3: Author Using Modern Home Assistant Syntax
 Read [references/automation_patterns.md](references/automation_patterns.md) for advanced patterns (trigger IDs, `choose`, `wait_for_trigger`, timers, and blueprints).
@@ -92,4 +92,4 @@ Read [references/automation_patterns.md](references/automation_patterns.md) for 
    ```bash
    ha-api reload automations
    ```
-3. Check `/config/home-assistant.log` or `ha-api error-log` to confirm zero warnings or errors from the reload.
+3. Check `/homeassistant/home-assistant.log` or `ha-api error-log` to confirm zero warnings or errors from the reload.
