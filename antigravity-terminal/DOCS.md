@@ -8,8 +8,9 @@
 
 1. Start the add-on and click **Open Web UI** (or click **Antigravity** in your Home Assistant sidebar).
 2. When `agy` launches for the first time, follow the interactive prompt in the terminal to sign in with your **Google account / Google AI plan** via OAuth:
-   - Click **↗ Open Sign-In Link** (or **📋 Copy Link**) in the floating **Google Sign-In Detected** banner at the top-right of the terminal, or click directly on the OAuth URL in the terminal.
-   - After signing in, paste the authorization code into the terminal (or into the banner's **Paste authorization code here...** box and click **Submit Code**).
+   - Click directly on the OAuth URL displayed in the terminal (any wrapped line of the URL will open the complete, unbroken sign-in link), or click the link in the **"Antigravity login"** Home Assistant persistent notification (bell icon in your sidebar).
+   - After signing in, paste the authorization code back into the terminal prompt.
+   - *Fallback*: You can also run `agy-login-url` in a second `tmux` window to write the full unwrapped URL to `/config/agy-login-url.txt`.
    - *Alternative*: If you prefer to use a Google AI Studio API Key instead of interactive OAuth, enter your key in the **Configuration** tab under `gemini_api_key` and restart the add-on.
 3. Your login credentials and conversation history are persisted across add-on restarts and updates in `/data/.gemini`.
 

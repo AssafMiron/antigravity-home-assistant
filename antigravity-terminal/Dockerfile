@@ -41,7 +41,6 @@ ENV LANG=en_US.UTF-8 \
     LANGUAGE=en_US:en \
     LC_ALL=en_US.UTF-8 \
     HOME=/root \
-    BROWSER=/usr/local/bin/xdg-open \
     PATH="/root/.local/bin:/usr/local/bin:${PATH}"
 
 # Install ttyd binary for web terminal over Ingress
@@ -70,8 +69,11 @@ RUN case "${BUILD_ARCH}" in \
 RUN pip3 install --no-cache-dir --break-system-packages yamllint requests
 
 # Attempt pre-installation of Antigravity CLI (`agy`) during image build
-# (Also verified/updated on container start in 00-setup-antigravity.sh)
-RUN curl -fsSL https://antigravity.google/cli/install.sh | bash || true
+# and keep a bundled fallback copy in /usr/local/bin/agy
+RUN (curl -fsSL https://antigravity.google/cli/install.sh -o /tmp/agy-install.sh \
+    && bash /tmp/agy-install.sh </dev/null \
+    && rm -f /tmp/agy-install.sh \
+    && if [ -x /root/.local/bin/agy ]; then cp -f /root/.local/bin/agy /usr/local/bin/agy; fi) || true
 
 # Copy the Home Assistant Antigravity Harness into /opt/ha-agy-harness
 COPY harness/ /opt/ha-agy-harness/
@@ -84,13 +86,12 @@ RUN chmod +x \
     /etc/services.d/ttyd/run \
     /etc/services.d/ttyd/finish \
     /usr/local/bin/agy-entrypoint \
+    /usr/local/bin/agy-login-url \
     /usr/local/bin/ha-api \
-    /usr/local/bin/xdg-open \
+    /usr/local/bin/login-url-watcher \
     /usr/local/bin/prepare-ttyd-ui \
     /opt/ha-agy-harness/hooks/*.sh \
     /opt/ha-agy-harness/skills/ha-diagnostics/scripts/*.sh \
-    && ln -sf /usr/local/bin/xdg-open /usr/local/bin/sensible-browser \
-    && ln -sf /usr/local/bin/xdg-open /usr/local/bin/x-www-browser \
     && /usr/local/bin/prepare-ttyd-ui || true
 
 WORKDIR /config

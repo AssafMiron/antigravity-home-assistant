@@ -89,11 +89,12 @@ antigravity-home-assistant/
         │   └── finish
         ├── usr/local/bin/
         │   ├── agy-entrypoint              # Terminal welcome banner, tmux & agy launcher
+        │   ├── agy-login-url               # Extracts & unwraps OAuth login URL from tmux
         │   ├── ha-api                      # Live Home Assistant REST API CLI helper
-        │   ├── prepare-ttyd-ui             # Injects OAuth & clipboard helper into ttyd UI
-        │   └── xdg-open                    # Captures OAuth URLs & broadcasts to web terminal
+        │   ├── login-url-watcher           # Delivers OAuth login URL as HA notification
+        │   └── prepare-ttyd-ui             # Injects multi-line URL & OSC 52 helper into ttyd UI
         └── usr/share/ttyd/
-            └── agy-ttyd-helper.js          # Multi-line OAuth link, banner & HTTP clipboard fix
+            └── agy-ttyd-helper.js          # Multi-line OAuth link & OSC 52 clipboard helper
 ```
 
 ## 📄 License

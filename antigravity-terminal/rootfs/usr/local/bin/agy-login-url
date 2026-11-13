@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# agy-login-url — Extract the most recent OAuth login URL from the Antigravity
+# tmux session, reassembling hard-wrapped terminal lines into a single unbroken
+# URL, and save it to /config/agy-login-url.txt (or print it with --print-only).
+#
+# Inspired by heytcass/home-assistant-addons (#122, #123).
+# ==============================================================================
+set -eo pipefail
+
+PRINT_ONLY=false
+if [ "${1:-}" = "--print-only" ]; then
+    PRINT_ONLY=true
+    shift
+fi
+
+OUT="${1:-/config/agy-login-url.txt}"
+TMUX_SESSION="${AGY_TMUX_SESSION:-antigravity}"
+
+capture_pane_text() {
+    if [ -n "${AGY_PANE_CAPTURE_FILE:-}" ] && [ -f "${AGY_PANE_CAPTURE_FILE}" ]; then
+        cat "${AGY_PANE_CAPTURE_FILE}"
+        return 0
+    fi
+    if [ "${PRINT_ONLY}" = "true" ]; then
+        tmux capture-pane -p -J -t "${TMUX_SESSION}" 2>/dev/null || true
+    else
+        tmux capture-pane -p -J -t "${TMUX_SESSION}" -S -500 2>/dev/null || true
+    fi
+}
+
+PANE_TEXT="$(capture_pane_text)"
+
+URL="$(PANE_DATA="${PANE_TEXT}" python3 - <<'PYEOF'
+import os
+import re
+import sys
+
+pane_data = os.environ.get("PANE_DATA", "")
+if not pane_data:
+    sys.exit(0)
+
+BORDER_CHARS = " \t\r\n│┃║|╭╮╯╰┌┐└┘├┤┬┴┼─━"
+URL_START_RE = re.compile(r"https?://[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]+", re.IGNORECASE)
+URL_CONT_RE = re.compile(r"^[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]+$")
+OAUTH_RE = re.compile(
+    r"(accounts\.google\.com/o/oauth2|antigravity\.google/oauth|/oauth2?/|client_id=|code_challenge=)",
+    re.IGNORECASE,
+)
+
+raw_lines = pane_data.splitlines()
+cleaned_lines = [line.strip(BORDER_CHARS) for line in raw_lines]
+
+found_oauth_url = ""
+i = 0
+n = len(cleaned_lines)
+
+while i < n:
+    line = cleaned_lines[i]
+    m = URL_START_RE.search(line)
+    if not m:
+        i += 1
+        continue
+
+    url_part = m.group(0)
+    parts = [url_part]
+    ends_at_line_end = line.endswith(url_part)
+    prev_len = len(url_part)
+    end_idx = i
+
+    if ends_at_line_end and prev_len >= 30:
+        for next_i in range(i + 1, min(n, i + 15)):
+            next_clean = cleaned_lines[next_i]
+            if (
+                next_clean
+                and not re.search(r"\s", next_clean)
+                and URL_CONT_RE.match(next_clean)
+                and not next_clean.lower().startswith(("http://", "https://"))
+            ):
+                parts.append(next_clean)
+                end_idx = next_i
+                if len(next_clean) < 30:
+                    break
+            else:
+                break
+
+    candidate = "".join(parts)
+    if OAUTH_RE.search(candidate):
+        found_oauth_url = candidate
+
+    i = end_idx + 1
+
+if found_oauth_url:
+    print(found_oauth_url)
+PYEOF
+)"
+
+if [ -z "${URL}" ]; then
+    if [ "${PRINT_ONLY}" = "false" ]; then
+        echo "No OAuth login URL found in the Antigravity session." >&2
+        echo "Start the login prompt in Antigravity first, then run this command again." >&2
+    fi
+    exit 1
+fi
+
+if [ "${PRINT_ONLY}" = "true" ]; then
+    printf '%s\n' "${URL}"
+    exit 0
+fi
+
+mkdir -p "$(dirname "${OUT}")"
+printf '%s\n' "${URL}" > "${OUT}"
+chmod 600 "${OUT}" 2>/dev/null || true
+
+echo "Login URL saved to: ${OUT}"
+echo ""
+printf '%s\n' "${URL}"
+echo ""
+echo "Click the URL above or open ${OUT} with the Home Assistant File Editor,"
+echo "copy the whole line into your browser, and authorize. Delete the file afterwards."
+

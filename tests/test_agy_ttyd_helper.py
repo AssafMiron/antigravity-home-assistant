@@ -14,33 +14,42 @@ class TestAgyTtydHelper(unittest.TestCase):
     def setUpClass(cls):
         cls.js_source = HELPER_JS_PATH.read_text(encoding="utf-8")
 
-    def test_helper_js_exists_and_contains_core_components(self):
+    def test_helper_js_exists_and_contains_core_components_without_auto_open_or_auto_copy(self):
         self.assertTrue(HELPER_JS_PATH.is_file())
         required_identifiers = [
             "unwrapIfMultilineUrl",
-            "execCopyFallback",
+            "copyWithExecCommand",
             "copyToClipboard",
+            "decodeOsc52",
             "scanBufferForWrappedUrls",
             "resolveFullUrl",
-            "ensureOAuthBanner",
-            "updateOAuthBanner",
+            "openUrlSafely",
             "registerOscHandler",
             "registerLinkProvider",
-            "agy-url-b64;",
-            "agy-oauth-banner",
-            "agy-oauth-open-btn",
-            "agy-oauth-copy-btn",
-            "agy-oauth-code-input",
-            "agy-oauth-submit-btn",
         ]
         for ident in required_identifiers:
             self.assertIn(ident, self.js_source, f"Missing identifier in agy-ttyd-helper.js: {ident}")
 
+        # Ensure removed problematic behaviors (auto-copy on select, floating banner, OSC 777, Window Proxy) are absent
+        forbidden_identifiers = [
+            "onSelectionChange",
+            "ensureOAuthBanner",
+            "agy-oauth-banner",
+            "agy-url-b64;",
+            "new Proxy",
+        ]
+        for forbidden in forbidden_identifiers:
+            self.assertNotIn(
+                forbidden,
+                self.js_source,
+                f"Forbidden identifier found in agy-ttyd-helper.js: {forbidden}",
+            )
+
     def test_multiline_oauth_url_reconstruction_algorithm(self):
         """
-        Verifies the exact multi-line wrapped URL reconstruction logic used in
-        scanBufferForWrappedUrls() and unwrapIfMultilineUrl() against the 6-line
-        wrapped Google OAuth URL from the Antigravity Terminal TUI.
+        Verifies the multi-line wrapped URL reconstruction logic used in
+        scanBufferForWrappedUrls() against the 6-line wrapped Google OAuth URL
+        from the Antigravity Terminal TUI (both plain and inside box borders).
         """
         full_expected_url = (
             "https://accounts.google.com/o/oauth2/auth?access_type=offline"
@@ -58,19 +67,19 @@ class TestAgyTtydHelper(unittest.TestCase):
             "&state=Y-7u894R2Ov8_vpvBud0jw"
         )
 
-        # Simulate Ink TUI hard-wrapping the URL at 95 columns with surrounding prompt lines
+        # Simulate Ink TUI hard-wrapping the URL at 95 columns inside a bordered box
         wrapped_chunks = [
-            full_expected_url[i : i + 95]
+            f"│ {full_expected_url[i : i + 95]} │"
             for i in range(0, len(full_expected_url), 95)
         ]
         self.assertGreaterEqual(len(wrapped_chunks), 6)
 
         terminal_rows = [
-            "Your browser should open automatically. If not:",
-            "",
+            "│ Please visit the following URL to authorize: │",
+            "│                                              │",
             *wrapped_chunks,
-            "",
-            "If you aren't automatically redirected, paste the authorization code below:",
+            "│                                              │",
+            "│ Enter the authorization code:                │",
         ]
 
         # Extract the exact URL_CONT_REGEX pattern from agy-ttyd-helper.js
@@ -79,21 +88,24 @@ class TestAgyTtydHelper(unittest.TestCase):
         url_cont_pattern = re.compile(r"^" + m.group(1) + r"+$")
 
         def clean_row(s: str) -> str:
-            return re.sub(r"[\s│┃║|]+$", "", re.sub(r"^[\s│┃║|]+", "", s))
+            return re.sub(
+                r"[\s│┃║|╭╮╯╰┌┐└┘├┤┬┴┼─━]+$",
+                "",
+                re.sub(r"^[\s│┃║|╭╮╯╰┌┐└┘├┤┬┴┼─━]+", "", s),
+            )
 
-        # Run the scanBufferForWrappedUrls algorithm on terminal_rows
         reconstructed = []
         r = 0
         while r < len(terminal_rows):
             cleaned = clean_row(terminal_rows[r])
-            match = re.search(r"https?://[^\s\"'<>]+", cleaned, re.IGNORECASE)
+            match = re.search(r"https?://[^\s\"'<>│┃║|]+", cleaned, re.IGNORECASE)
             if not match:
                 r += 1
                 continue
             url_start = match.group(0)
             parts = [url_start]
             end_row = r
-            if cleaned.endswith(url_start):
+            if cleaned.endswith(url_start) and len(url_start) >= 30:
                 for next_r in range(r + 1, min(len(terminal_rows), r + 15)):
                     next_clean = clean_row(terminal_rows[next_r])
                     if (
@@ -104,6 +116,8 @@ class TestAgyTtydHelper(unittest.TestCase):
                     ):
                         parts.append(next_clean)
                         end_row = next_r
+                        if len(next_clean) < 30:
+                            break
                     else:
                         break
             reconstructed.append(
@@ -118,7 +132,6 @@ class TestAgyTtydHelper(unittest.TestCase):
 
         self.assertEqual(len(reconstructed), 1)
         self.assertEqual(reconstructed[0]["fullUrl"], full_expected_url)
-        self.assertEqual(reconstructed[0]["firstLineUrl"], wrapped_chunks[0])
         self.assertEqual(reconstructed[0]["startRow"], 2)
         self.assertEqual(reconstructed[0]["endRow"], 2 + len(wrapped_chunks) - 1)
 
@@ -134,7 +147,11 @@ class TestAgyTtydHelper(unittest.TestCase):
             if not re.match(r"^https?://", trimmed, re.IGNORECASE):
                 return text
             lines = [
-                re.sub(r"[\s│┃║|]+$", "", re.sub(r"^[\s│┃║|]+", "", l))
+                re.sub(
+                    r"[\s│┃║|╭╮╯╰┌┐└┘├┤┬┴┼─━]+$",
+                    "",
+                    re.sub(r"^[\s│┃║|╭╮╯╰┌┐└┘├┤┬┴┼─━]+", "", l),
+                )
                 for l in re.split(r"\r?\n", trimmed)
             ]
             if len(lines) > 1 and all(len(l) > 0 and not re.search(r"\s", l) for l in lines):

@@ -19,8 +19,9 @@ class TestShellScriptsAndHooks(unittest.TestCase):
             ADDON_DIR / "rootfs/etc/services.d/ttyd/run",
             ADDON_DIR / "rootfs/etc/services.d/ttyd/finish",
             ADDON_DIR / "rootfs/usr/local/bin/agy-entrypoint",
+            ADDON_DIR / "rootfs/usr/local/bin/agy-login-url",
             ADDON_DIR / "rootfs/usr/local/bin/ha-api",
-            ADDON_DIR / "rootfs/usr/local/bin/xdg-open",
+            ADDON_DIR / "rootfs/usr/local/bin/login-url-watcher",
             ADDON_DIR / "rootfs/usr/local/bin/prepare-ttyd-ui",
             ADDON_DIR / "harness/hooks/session_start.sh",
             ADDON_DIR / "harness/hooks/pre_edit_backup.sh",
@@ -323,8 +324,61 @@ class TestShellScriptsAndHooks(unittest.TestCase):
             self.assertIn("Unknown Entities:     1", res.stdout)
             self.assertIn("Test error line", res.stdout)
 
-    def test_xdg_open_writes_url_and_broadcasts_osc_sequences(self):
-        xdg_open = ADDON_DIR / "rootfs/usr/local/bin/xdg-open"
+    def test_agy_login_url_reassembles_hard_wrapped_and_bordered_oauth_url(self):
+        agy_login_url = ADDON_DIR / "rootfs/usr/local/bin/agy-login-url"
+        oauth_url = (
+            "https://accounts.google.com/o/oauth2/auth?access_type=offline"
+            "&client_id=1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
+            "&code_challenge=2G9239uYWzCIiDcRbvOJ9Vc5Zlk_9wxrvGU2j7s3MmA"
+            "&code_challenge_method=S256&redirect_uri=https%3A%2F%2Fantigravity.google%2Foauth-callback"
+            "&response_type=code&state=Y-7u894R2Ov8_vpvBud0jw"
+        )
+
+        # Simulate Ink TUI hard-wrapping the URL across 4 bordered lines followed by prompt text
+        chunks = [oauth_url[i : i + 75] for i in range(0, len(oauth_url), 75)]
+        pane_lines = [
+            "╭───────────────────────────────────────────────────────────────────────────────╮",
+            "│ Please visit the following URL to authorize Antigravity:                      │",
+            "│                                                                               │",
+            *[f"│ {chunk:<77} │" for chunk in chunks],
+            "│                                                                               │",
+            "│ Enter the authorization code:                                                 │",
+            "╰───────────────────────────────────────────────────────────────────────────────╯",
+        ]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = pathlib.Path(tmpdir)
+            pane_file = tmp_path / "pane.txt"
+            out_file = tmp_path / "agy-login-url.txt"
+            pane_file.write_text("\n".join(pane_lines) + "\n", encoding="utf-8")
+
+            env = os.environ.copy()
+            env["AGY_PANE_CAPTURE_FILE"] = str(pane_file)
+
+            # 1. --print-only mode
+            res_print = subprocess.run(
+                [str(agy_login_url), "--print-only"],
+                env=env,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self.assertEqual(res_print.stdout.strip(), oauth_url)
+
+            # 2. Default file-save mode
+            res_save = subprocess.run(
+                [str(agy_login_url), str(out_file)],
+                env=env,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self.assertEqual(out_file.read_text(encoding="utf-8").strip(), oauth_url)
+            self.assertIn("Login URL saved to:", res_save.stdout)
+
+    def test_login_url_watcher_posts_and_dismisses_ha_notification(self):
+        watcher = ADDON_DIR / "rootfs/usr/local/bin/login-url-watcher"
+        agy_login_url = ADDON_DIR / "rootfs/usr/local/bin/agy-login-url"
         oauth_url = (
             "https://accounts.google.com/o/oauth2/auth?access_type=offline"
             "&client_id=1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
@@ -335,24 +389,46 @@ class TestShellScriptsAndHooks(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = pathlib.Path(tmpdir)
-            last_url_file = tmp_path / "last-url.txt"
-            pts_dir = tmp_path / "pts"
-            pts_dir.mkdir()
-            fake_pts = pts_dir / "0"
-            fake_pts.write_text("", encoding="utf-8")
+            pane_file = tmp_path / "pane.txt"
+            curl_log = tmp_path / "curl_calls.jsonl"
+            mock_curl = tmp_path / "curl"
+
+            mock_curl.write_text(
+                '#!/usr/bin/env bash\n'
+                'URL="${!#}"\n'
+                'PAYLOAD=""\n'
+                'for ((i=1; i<=$#; i++)); do\n'
+                '  if [ "${!i}" = "-d" ]; then\n'
+                '    next=$((i+1))\n'
+                '    PAYLOAD="${!next}"\n'
+                '  fi\n'
+                'done\n'
+                f'printf "%s\\t%s\\n" "$URL" "$PAYLOAD" >> "{curl_log}"\n',
+                encoding="utf-8",
+            )
+            mock_curl.chmod(mock_curl.stat().st_mode | stat.S_IEXEC)
+
+            chunks = [oauth_url[i : i + 70] for i in range(0, len(oauth_url), 70)]
+            pane_file.write_text("\n".join(chunks) + "\n", encoding="utf-8")
 
             env = os.environ.copy()
-            env["AGY_LAST_URL_FILE"] = str(last_url_file)
-            env["AGY_PTS_DIR"] = str(pts_dir)
+            env["PATH"] = f"{tmp_path}:{env.get('PATH', '')}"
+            env["SUPERVISOR_TOKEN"] = "test-supervisor-token"
+            env["AGY_PANE_CAPTURE_FILE"] = str(pane_file)
+            env["AGY_LOGIN_URL_BIN"] = str(agy_login_url)
+            env["AGY_WATCHER_ONCE"] = "true"
 
-            subprocess.run([str(xdg_open), oauth_url], env=env, check=True)
+            subprocess.run([str(watcher)], env=env, check=True)
 
-            self.assertEqual(last_url_file.read_text(encoding="utf-8").strip(), oauth_url)
-
-            pts_output = fake_pts.read_bytes()
-            expected_b64 = base64.b64encode(oauth_url.encode("utf-8")).decode("ascii")
-            self.assertIn(f"\033]52;c;{expected_b64}\007".encode("ascii"), pts_output)
-            self.assertIn(f"\033]777;agy-url-b64;{expected_b64}\007".encode("ascii"), pts_output)
+            calls = curl_log.read_text(encoding="utf-8").strip().splitlines()
+            # First call: startup stale notification dismiss; second call: create notification with full URL
+            self.assertEqual(len(calls), 2)
+            self.assertIn("/services/persistent_notification/dismiss", calls[0])
+            self.assertIn("/services/persistent_notification/create", calls[1])
+            create_payload = json.loads(calls[1].split("\t", 1)[1])
+            self.assertEqual(create_payload["notification_id"], "agy_login_url")
+            self.assertEqual(create_payload["title"], "Antigravity login")
+            self.assertIn(f"[Click here to authorize Antigravity]({oauth_url})", create_payload["message"])
 
     def test_prepare_ttyd_ui_decompresses_and_injects_helper(self):
         prepare_script = ADDON_DIR / "rootfs/usr/local/bin/prepare-ttyd-ui"
@@ -379,8 +455,8 @@ class TestShellScriptsAndHooks(unittest.TestCase):
             self.assertTrue(out_html.is_file())
             patched = out_html.read_text(encoding="utf-8")
             self.assertIn('<div id="terminal"></div>', patched)
-            self.assertIn("agy-oauth-banner", patched)
             self.assertIn("scanBufferForWrappedUrls", patched)
+            self.assertNotIn("agy-oauth-banner", patched)
 
     def test_ttyd_run_and_tmux_configuration(self):
         ttyd_run = (ADDON_DIR / "rootfs/etc/services.d/ttyd/run").read_text(encoding="utf-8")
@@ -393,10 +469,13 @@ class TestShellScriptsAndHooks(unittest.TestCase):
         )
         self.assertNotIn("'JetBrains Mono'", ttyd_run)
         self.assertIn("--index /usr/share/ttyd/index.html", ttyd_run)
+        self.assertIn("/usr/local/bin/login-url-watcher", ttyd_run)
 
-        # Verify tmux mouse hijacking is disabled and BROWSER is exported
+        # Verify tmux mouse hijacking is disabled and BROWSER / xdg-open is NOT exported
         self.assertIn("set -g mouse off", setup_script)
-        self.assertIn('export BROWSER="/usr/local/bin/xdg-open"', setup_script)
+        self.assertNotIn("BROWSER", setup_script)
+        self.assertNotIn("xdg-open", setup_script)
+        self.assertFalse((ADDON_DIR / "rootfs/usr/local/bin/xdg-open").exists())
 
 
 if __name__ == "__main__":

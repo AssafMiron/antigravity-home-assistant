@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# login-url-watcher — Background loop that detects Antigravity CLI's OAuth login
+# URL in the tmux pane and delivers it as a clickable Home Assistant persistent
+# notification, dismissing stale notifications on startup and after login.
+#
+# Inspired by heytcass/home-assistant-addons (#122, #124).
+# ==============================================================================
+
+NOTIFICATION_ID="agy_login_url"
+POLL_INTERVAL="${AGY_WATCHER_POLL_INTERVAL:-3}"
+TMUX_SESSION="${AGY_TMUX_SESSION:-antigravity}"
+LOGIN_URL_BIN="${AGY_LOGIN_URL_BIN:-/usr/local/bin/agy-login-url}"
+SUPERVISOR_API="${AGY_SUPERVISOR_API:-http://supervisor/core/api}"
+
+extract_url() {
+    "${LOGIN_URL_BIN}" --print-only 2>/dev/null || true
+}
+
+has_active_session() {
+    if [ -n "${AGY_PANE_CAPTURE_FILE:-}" ] && [ -f "${AGY_PANE_CAPTURE_FILE}" ]; then
+        return 0
+    fi
+    tmux has-session -t "${TMUX_SESSION}" 2>/dev/null
+}
+
+notify() {
+    local url="$1"
+    [ -n "${SUPERVISOR_TOKEN:-}" ] || return 0
+
+    local payload
+    payload="$(NOTIFY_URL="${url}" NOTIFY_ID="${NOTIFICATION_ID}" python3 - <<'PYEOF'
+import json
+import os
+
+url = os.environ["NOTIFY_URL"]
+nid = os.environ["NOTIFY_ID"]
+msg = (
+    f"[Click here to authorize Antigravity]({url})\n\n"
+    f"If it doesn't open the right app, copy this link instead:\n{url}"
+)
+print(json.dumps({
+    "title": "Antigravity login",
+    "message": msg,
+    "notification_id": nid,
+}))
+PYEOF
+)"
+
+    curl -fsS -X POST \
+        -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+        -H "Content-Type: application/json" \
+        -d "${payload}" \
+        "${SUPERVISOR_API}/services/persistent_notification/create" >/dev/null 2>&1 || true
+}
+
+dismiss() {
+    [ -n "${SUPERVISOR_TOKEN:-}" ] || return 0
+
+    local payload
+    payload="$(NOTIFY_ID="${NOTIFICATION_ID}" python3 - <<'PYEOF'
+import json
+import os
+
+print(json.dumps({"notification_id": os.environ["NOTIFY_ID"]}))
+PYEOF
+)"
+
+    curl -fsS -X POST \
+        -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
+        -H "Content-Type: application/json" \
+        -d "${payload}" \
+        "${SUPERVISOR_API}/services/persistent_notification/dismiss" >/dev/null 2>&1 || true
+}
+
+# Clear any notification left over from a previous container before starting
+dismiss
+
+last_url=""
+notified=0
+
+while true; do
+    if has_active_session; then
+        url="$(extract_url)"
+        if [ -n "${url}" ]; then
+            if [ "${url}" != "${last_url}" ]; then
+                notify "${url}"
+                last_url="${url}"
+                notified=1
+            fi
+        elif [ "${notified}" = "1" ]; then
+            dismiss
+            notified=0
+            last_url=""
+        fi
+    fi
+
+    if [ "${AGY_WATCHER_ONCE:-}" = "true" ]; then
+        break
+    fi
+    sleep "${POLL_INTERVAL}"
+done
+
