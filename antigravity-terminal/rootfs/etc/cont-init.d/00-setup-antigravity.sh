@@ -28,18 +28,30 @@ if [ ! -L /root/.local/bin ]; then
     ln -s /data/.local/bin /root/.local/bin
 fi
 
-# 2. Install or update Antigravity CLI (`agy`)
+# 2. Install or update Antigravity CLI (`agy`) without blocking stdin or boot
+install_agy_safely() {
+    local installer
+    installer=$(mktemp /tmp/agy-install.XXXXXX.sh)
+    if curl -fsSL --connect-timeout 10 https://antigravity.google/cli/install.sh -o "${installer}" \
+        && timeout 60 bash "${installer}" </dev/null >/dev/null 2>&1; then
+        rm -f "${installer}"
+        return 0
+    fi
+    rm -f "${installer}"
+    return 1
+}
+
 AGY_AUTO_UPDATE=$(bashio::config 'agy_auto_update')
 if [ ! -x "/root/.local/bin/agy" ] && ! command -v agy >/dev/null 2>&1; then
     bashio::log.info "Installing Google Antigravity CLI (agy)..."
-    if curl -fsSL https://antigravity.google/cli/install.sh | bash; then
+    if install_agy_safely; then
         bashio::log.info "Antigravity CLI installed successfully."
     else
         bashio::log.warning "Could not download Antigravity CLI at startup. You can install it manually inside the terminal."
     fi
 elif [ "${AGY_AUTO_UPDATE}" = "true" ]; then
-    bashio::log.info "Checking for Antigravity CLI updates..."
-    curl -fsSL https://antigravity.google/cli/install.sh | bash || bashio::log.warning "Auto-update check skipped."
+    bashio::log.info "Checking for Antigravity CLI updates in background..."
+    (install_agy_safely || true) &
 fi
 
 # 3. Install the Home Assistant Harness into ~/.gemini/config/
@@ -75,7 +87,6 @@ USE_TMUX_VAL=$(bashio::config 'use_tmux')
 
 cat <<EOF > /etc/profile.d/antigravity-ha.sh
 export PATH="/root/.local/bin:/usr/local/bin:\${PATH}"
-export BROWSER="/usr/local/bin/xdg-open"
 export SUPERVISOR_TOKEN="${SUPERVISOR_TOKEN:-}"
 export HASSIO_TOKEN="${SUPERVISOR_TOKEN:-}"
 export HA_AUTO_BACKUP="${AUTO_BACKUP_VAL}"
@@ -94,12 +105,13 @@ fi
 
 chmod +x /etc/profile.d/antigravity-ha.sh
 
-# Configure tmux for persistent sessions while keeping native browser mouse selection & clipboard
+# Configure tmux for persistent sessions while keeping native browser mouse selection & OSC 52 clipboard
 cat <<'EOF' > /root/.tmux.conf
 set -g mouse off
 set -g set-clipboard on
+set -g allow-passthrough on
 set -as terminal-features ',*:clipboard'
-set -ag terminal-overrides ',*:Ms=\E]52;c;%p2%s\7'
+set -ag terminal-overrides ',*:Ms=\E]52;%p1%s;%p2%s\007'
 set -g history-limit 50000
 set -g default-terminal "screen-256color"
 set -g status-bg "#1a73e8"

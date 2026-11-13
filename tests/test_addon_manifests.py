@@ -138,8 +138,10 @@ class TestAddonManifests(unittest.TestCase):
 
     def test_dockerfile_requirements(self):
         dockerfile = (ADDON_DIR / "Dockerfile").read_text(encoding="utf-8")
-        self.assertIn("BROWSER=/usr/local/bin/xdg-open", dockerfile)
-        self.assertIn("/usr/local/bin/xdg-open", dockerfile)
+        self.assertNotIn("BROWSER=", dockerfile)
+        self.assertNotIn("xdg-open", dockerfile)
+        self.assertIn("/usr/local/bin/agy-login-url", dockerfile)
+        self.assertIn("/usr/local/bin/login-url-watcher", dockerfile)
         self.assertIn("/usr/local/bin/prepare-ttyd-ui", dockerfile)
         self.assertIn("/usr/local/bin/agy-entrypoint", dockerfile)
         self.assertIn("/usr/local/bin/ha-api", dockerfile)

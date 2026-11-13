@@ -1,14 +1,17 @@
 # Changelog
 
+## 1.0.2
+
+- Reverted browser auto-open (`xdg-open` / `$BROWSER`) and auto-copy-on-select behaviors that caused the CLI OAuth flow and Home Assistant UI to stall.
+- Fixed Google OAuth authentication URL truncation in the web terminal (inspired by `heytcass/home-assistant-addons#122`):
+  - Reconstructs hard-wrapped multi-line OAuth URLs in `ttyd` so clicking directly on any wrapped line of the URL in the terminal opens the complete, unbroken authorization link.
+  - Added `agy-login-url` and background `login-url-watcher` to reassemble wrapped OAuth URLs from the `tmux` pane and deliver a clickable **"Antigravity login"** persistent notification in Home Assistant (clearing stale notifications on startup and after login).
+- Added focus-preserving OSC 52 clipboard support (`registerOscHandler(52, ...)`) and explicit `Cmd+C` / `Ctrl+Shift+C` copy support with plain-HTTP fallback (`document.execCommand('copy')`).
+- Moved Antigravity CLI auto-update checks to the background with closed `stdin` so add-on startup never blocks.
+
 ## 1.0.1
 
-- Fixed Google OAuth authentication URL handling in the web terminal:
-  - Added multi-line wrapped URL detection and link provider in `ttyd` so clicking any line of the wrapped OAuth link opens the complete, unbroken OAuth URL.
-  - Added a floating **Google Sign-In Detected** helper bar when an OAuth prompt is active, with one-click **Open Sign-In Link**, **Copy Link**, and **Submit Code** controls.
-  - Added a container `xdg-open` / `$BROWSER` handler that captures the full unbroken URL from `agy` and forwards it to the web terminal via OSC 52 / OSC 777.
-- Fixed terminal text selection and clipboard copying:
-  - Disabled `tmux` mouse-capture (`set -g mouse off`) so browser mouse selection works natively in `xterm.js` without swallowing selections.
-  - Added an HTTP clipboard fallback (`document.execCommand('copy')`) so copy-on-select and `Ctrl+C` / `Cmd+C` work on plain HTTP origins (e.g., `http://homeassistant.local:8123`), automatically unwrapping multi-line URLs when copied.
+- Disabled `tmux` mouse-capture (`set -g mouse off`) so browser mouse selection works natively in `xterm.js`.
 - Fixed terminal `fontFamily` configuration in `ttyd` that caused fallback serif rendering, wide character spacing, and right-edge line clipping.
 
 ## 1.0.0

@@ -17,7 +17,13 @@ if [ ! -d "${WORK_DIR}" ]; then
     WORK_DIR="/config"
 fi
 
-# Ensure enhanced ttyd index.html (multi-line OAuth URL handler & HTTP clipboard fix) exists
+# Start background watcher to deliver OAuth login URL as a clickable HA notification
+if [ -z "${GEMINI_API_KEY:-}" ] && [ -x /usr/local/bin/login-url-watcher ]; then
+    bashio::log.info "Starting OAuth login URL notification watcher in background..."
+    (/usr/local/bin/login-url-watcher >/dev/null 2>&1 || true) &
+fi
+
+# Ensure enhanced ttyd index.html (multi-line OAuth URL link provider & OSC 52 clipboard) exists
 if [ ! -s /usr/share/ttyd/index.html ] && [ -x /usr/local/bin/prepare-ttyd-ui ]; then
     /usr/local/bin/prepare-ttyd-ui || bashio::log.warning "Fallback to built-in ttyd UI."
 fi

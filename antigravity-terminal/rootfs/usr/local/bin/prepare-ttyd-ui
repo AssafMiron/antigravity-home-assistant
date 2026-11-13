@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # Extracts ttyd's built-in index.html and injects agy-ttyd-helper.js
-# so multi-line OAuth links, HTTP clipboard copy, and the OAuth helper bar work.
+# so multi-line wrapped OAuth links in the terminal are clickable and OSC 52
+# clipboard writes work.
 # ==============================================================================
 set -e
 
@@ -21,8 +22,7 @@ if [ -z "${TTYD_RAW_RESPONSE_FILE:-}" ]; then
     TTYD_PID=$!
 
     cleanup() {
-        kill "${TTYD_PID}" 2>/dev/null || true
-        wait "${TTYD_PID}" 2>/dev/null || true
+        kill -9 "${TTYD_PID}" 2>/dev/null || true
     }
     trap cleanup EXIT
 fi
@@ -44,14 +44,14 @@ raw_data = None
 if raw_response_file:
     raw_data = pathlib.Path(raw_response_file).read_bytes()
 else:
-    for _ in range(30):
+    for _ in range(50):
         try:
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=2) as resp:
                 raw_data = resp.read()
                 if raw_data:
                     break
         except Exception:
-            time.sleep(0.1)
+            time.sleep(0.2)
 
 if not raw_data:
     sys.exit(1)
@@ -70,4 +70,3 @@ else:
 
 out_path.write_text(patched, encoding="utf-8")
 PYEOF
-
