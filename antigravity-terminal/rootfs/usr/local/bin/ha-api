@@ -57,15 +57,22 @@ shift || true
 case "${CMD}" in
     states)
         FILTER="${1:-}"
+        format_tsv() {
+            if command -v column >/dev/null 2>&1 && [ "${HA_API_NO_COLUMN:-}" != "1" ]; then
+                column -t -s $'\t'
+            else
+                awk -F'\t' '{ printf "%-40s %-15s %s\n", $1, $2, $3 }'
+            fi
+        }
         if [ -n "${FILTER}" ]; then
             auth_curl "${API_BASE}/states" | jq -r --arg f "${FILTER}" '
                 .[] | select(.entity_id | contains($f)) |
                 "\(.entity_id)\t\(.state)\t\(.attributes.friendly_name // "")"
-            ' | column -t -s $'\t'
+            ' | format_tsv
         else
             auth_curl "${API_BASE}/states" | jq -r '
                 .[] | "\(.entity_id)\t\(.state)\t\(.attributes.friendly_name // "")"
-            ' | column -t -s $'\t'
+            ' | format_tsv
         fi
         ;;
 
@@ -147,8 +154,10 @@ case "${CMD}" in
 
     dashboards)
         echo "=== YAML & Storage Lovelace Dashboards ==="
-        ls -la /config/ui-lovelace*.yaml /config/dashboards/*.yaml 2>/dev/null || true
-        ls -la /config/.storage/lovelace* 2>/dev/null || true
+        HA_CONF="${HA_CONFIG_DIR:-/homeassistant}"
+        [ ! -d "${HA_CONF}" ] && [ -d /config ] && HA_CONF="/config"
+        ls -la "${HA_CONF}"/ui-lovelace*.yaml "${HA_CONF}"/dashboards/*.yaml 2>/dev/null || true
+        ls -la "${HA_CONF}"/.storage/lovelace* 2>/dev/null || true
         ;;
 
     raw)

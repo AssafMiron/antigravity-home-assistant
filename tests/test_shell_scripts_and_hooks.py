@@ -242,6 +242,14 @@ class TestShellScriptsAndHooks(unittest.TestCase):
             self.assertIn("light.kitchen", res.stdout)
             self.assertNotIn("sensor.temp", res.stdout)
 
+            # states filtered without column utility (awk fallback)
+            env_nocol = env.copy()
+            env_nocol["HA_API_NO_COLUMN"] = "1"
+            res_nocol = subprocess.run([str(ha_api), "states", "light"], env=env_nocol, capture_output=True, text=True, check=True)
+            self.assertIn("light.kitchen", res_nocol.stdout)
+            self.assertIn("Kitchen Light", res_nocol.stdout)
+            self.assertNotIn("sensor.temp", res_nocol.stdout)
+
             # single entity state
             res = subprocess.run([str(ha_api), "state", "light.kitchen"], env=env, capture_output=True, text=True, check=True)
             self.assertEqual(json.loads(res.stdout)["entity_id"], "light.kitchen")

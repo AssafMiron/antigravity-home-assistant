@@ -22,7 +22,7 @@ case "${TARGET_PATH}" in
         exit 0
         ;;
     */secrets.yaml)
-        jq -n --arg reason "Confirm before modifying /config/secrets.yaml." \
+        jq -n --arg reason "Confirm before modifying secrets.yaml (${TARGET_PATH})." \
             '{decision: "ask", reason: $reason}'
         exit 0
         ;;

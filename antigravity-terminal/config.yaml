@@ -26,7 +26,7 @@ options:
   auto_launch_agy: true
   agy_auto_update: true
   use_tmux: true
-  working_directory: "/config"
+  working_directory: "/homeassistant"
   execution_mode: "default"
   enable_safety_hooks: true
   auto_backup_before_edit: true

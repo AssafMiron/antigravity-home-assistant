@@ -7,7 +7,8 @@
 set -u
 
 ICON_SRC="${AGY_SIDEBAR_ICON_SRC:-/usr/share/ttyd/agy-ha-sidebar-icon.js}"
-WWW_DIR="${HA_WWW_DIR:-/config/www}"
+WWW_DIR="${HA_WWW_DIR:-/homeassistant/www}"
+[ ! -d "$(dirname "${WWW_DIR}")" ] && [ -d /config ] && WWW_DIR="/config/www"
 ICON_DEST="${WWW_DIR}/agy-ha-sidebar-icon.js"
 RESOURCE_URL="/local/agy-ha-sidebar-icon.js"
 TOKEN="${SUPERVISOR_TOKEN:-${HASSIO_TOKEN:-}}"

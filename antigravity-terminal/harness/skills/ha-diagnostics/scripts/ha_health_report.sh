@@ -22,14 +22,16 @@ echo "Unavailable Entities: ${UNAVAIL_COUNT}"
 echo "Unknown Entities:     ${UNKNOWN_COUNT}"
 
 echo ""
-echo "--- [3] Storage & Database Usage (/config) ---"
-df -h /config 2>/dev/null || true
-ls -lh /config/home-assistant_v2.db /config/home-assistant.log 2>/dev/null || true
+echo "--- [3] Storage & Database Usage ---"
+HA_DIR="/homeassistant"
+[ ! -d "${HA_DIR}" ] && [ -d "/config" ] && HA_DIR="/config"
+df -h "${HA_DIR}" 2>/dev/null || true
+ls -lh "${HA_DIR}"/home-assistant_v2.db "${HA_DIR}"/home-assistant.log 2>/dev/null || true
 
 echo ""
 echo "--- [4] Recent Errors in home-assistant.log (Last 20) ---"
-if [ -f /config/home-assistant.log ]; then
-    grep -E "ERROR|CRITICAL" /config/home-assistant.log | tail -n 20 || echo "No recent ERROR lines found."
+if [ -f "${HA_DIR}"/home-assistant.log ]; then
+    grep -E "ERROR|CRITICAL" "${HA_DIR}"/home-assistant.log | tail -n 20 || echo "No recent ERROR lines found."
 else
     ha-api error-log 2>/dev/null | grep -E "ERROR|CRITICAL" | tail -n 20 || echo "No recent ERROR lines found."
 fi

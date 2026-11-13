@@ -13,7 +13,9 @@ if [ -f /etc/profile.d/antigravity-ha.sh ]; then
 fi
 
 WORK_DIR=$(bashio::config 'working_directory')
-if [ ! -d "${WORK_DIR}" ]; then
+if [ -d "/homeassistant" ] && { [ ! -d "${WORK_DIR}" ] || { [ "${WORK_DIR}" = "/config" ] && [ ! -f "/config/configuration.yaml" ]; }; }; then
+    WORK_DIR="/homeassistant"
+elif [ ! -d "${WORK_DIR}" ]; then
     WORK_DIR="/config"
 fi
 

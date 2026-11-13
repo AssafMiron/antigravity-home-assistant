@@ -2,6 +2,9 @@
 
 ## 1.0.3
 
+- Corrected Home Assistant configuration path from `/config` to `/homeassistant` across `GEMINI.md`, skills (`ha-automations`, `ha-dashboards`, `ha-diagnostics`), rules, and hooks, aligning with modern Home Assistant `homeassistant_config:rw` mount layout (with a `/config` symlink for backward compatibility).
+- Fixed `ha-api states` failure on systems missing `column` by adding resilient TSV table formatting with `awk`/`printf` fallback and bundling `bsdextrautils` in `Dockerfile`.
+- Added sandbox execution rule in `GEMINI.md` instructing Antigravity to run `ha-api` and `ha` commands with `BypassSandbox: true` immediately, eliminating sandbox socket resets and duplicate retry prompts.
 - Added custom **Antigravity sidebar icon** (`agy:antigravity` vector arch logo) in the Home Assistant sidebar via both same-origin Ingress injection and automatic Lovelace frontend module registration (`/local/agy-ha-sidebar-icon.js`).
 - Migrated container build parameters (`FROM` multi-arch base image selection and OCI `LABEL` metadata) directly into `Dockerfile` and removed the deprecated `build.yaml` file.
 - Updated `config.yaml` folder mapping from legacy `addon_config:rw` to `app_config:rw` for Home Assistant 2026 Supervisor compatibility.

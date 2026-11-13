@@ -154,6 +154,8 @@ class TestAddonManifests(unittest.TestCase):
         self.assertIn("/usr/local/bin/register-ha-sidebar-icon", dockerfile)
         self.assertIn("/usr/local/bin/agy-entrypoint", dockerfile)
         self.assertIn("/usr/local/bin/ha-api", dockerfile)
+        self.assertIn("bsdextrautils", dockerfile)
+        self.assertIn("WORKDIR /homeassistant", dockerfile)
 
     def test_hooks_json_and_scripts_exist(self):
         hooks_json_path = ADDON_DIR / "harness" / "hooks.json"

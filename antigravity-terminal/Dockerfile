@@ -16,6 +16,7 @@ ARG HA_CLI_VERSION=4.32.0
 # Install core system utilities, Python, Node, jq, yq, tmux, git, sqlite3
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
+    bsdextrautils \
     ca-certificates \
     curl \
     git \
@@ -101,4 +102,4 @@ RUN chmod +x \
     /opt/ha-agy-harness/skills/ha-diagnostics/scripts/*.sh \
     && /usr/local/bin/prepare-ttyd-ui || true
 
-WORKDIR /config
+WORKDIR /homeassistant
