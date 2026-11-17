@@ -2,47 +2,125 @@
 name: ha-dashboards
 description: >-
   Create, organize, and customize Home Assistant Lovelace dashboards, Sections views,
-  Tile cards, badges, and custom HACS frontend cards. Activate this skill when the user
-  asks to build, redesign, or fix a Home Assistant dashboard or UI view.
+  dashboard pages, Tile cards, and widgets. Activate this skill when the user
+  asks to build, create, or update a dashboard page, card, or widget.
 ---
 
 # Home Assistant Lovelace Dashboards Skill
 
-## Step 1: Identify Dashboard Mode (YAML vs Storage)
-Before creating or modifying a dashboard, determine how the user's dashboards are managed:
-1. Check `/homeassistant/configuration.yaml` for a `lovelace:` block:
-   - `mode: yaml` or custom YAML dashboards defined under `dashboards:`.
-2. Run `ha-api dashboards` or inspect:
-   - YAML dashboards: `/homeassistant/ui-lovelace.yaml` or `/homeassistant/dashboards/*.yaml`
-   - UI-Managed (Storage) dashboards: `/homeassistant/.storage/lovelace` and `/homeassistant/.storage/lovelace.<dashboard_key>`
-   - Dashboard registry: `/homeassistant/.storage/lovelace_dashboards`
-3. Check installed custom cards (HACS / resources):
-   - Inspect `/homeassistant/www/community/` and `/homeassistant/.storage/lovelace_resources` to see which custom cards (e.g. `mushroom`, `button-card`, `mini-graph-card`, `card-mod`, `apexcharts-card`) are actually installed before using any `custom:*` card type!
+This skill provides direct recipes for creating and modifying Home Assistant dashboards, pages, and widgets with minimal token consumption.
 
-## Step 2: Gather Live Entities by Area or Domain
-Never invent entity IDs for dashboard cards. Query live entities first:
-```bash
-ha-api states
+## Step 1: Identify Dashboard Target (YAML vs Storage)
+1. Check `/homeassistant/configuration.yaml` for `lovelace: mode: yaml`.
+2. Inspect available dashboards:
+   ```bash
+   ha-api dashboards
+   ```
+   - **YAML dashboards**: `/homeassistant/ui-lovelace.yaml` or `/homeassistant/dashboards/*.yaml`
+   - **Storage dashboards (Default UI)**: `/homeassistant/.storage/lovelace` or `/homeassistant/.storage/lovelace.<id>`
+
+## Step 2: Instant Card & Widget Recipes
+
+### 1. Tile Widget / Card (Modern Standard)
+```yaml
+type: tile
+entity: light.living_room
+name: "Living Room Light"
+icon: mdi:lightbulb
+color: amber
+features:
+  - type: light-brightness
 ```
-Group entities logically by room/area (`Living Room`, `Kitchen`, `Bedroom`) or function (`Security`, `Climate`, `Energy`, `Network`).
 
-## Step 3: Design Modern Lovelace Views (`sections` & `tile` Cards)
-Modern Home Assistant (2024.3+ / 2025 / 2026+) uses the **Sections (`type: sections`)** view layout and **Tile (`type: tile`)** cards as the primary standard.
-Read [references/lovelace_sections.md](references/lovelace_sections.md) for complete examples of Sections views, Grid options, Tile features, and conditional visibility.
+### 2. Thermostat / Climate Widget
+```yaml
+type: tile
+entity: climate.thermostat
+name: "HVAC"
+features:
+  - type: climate-hvac-modes
+    hvac_modes:
+      - heat
+      - cool
+      - "off"
+      - auto
+  - type: target-temperature
+```
 
-### Key Dashboard Design Principles
-1. **Prefer `type: sections` Views**:
-   - Sections views provide responsive multi-column grids (`max_columns: 3` or `4`) with clean section headers and drag-and-drop grid sizing.
-2. **Prefer `type: tile` Cards**:
-   - Tile cards support built-in interactive `features:` (brightness sliders, climate HVAC mode selectors, cover open/close buttons, media playback controls) without requiring third-party plugins.
-3. **Top-of-View Badges**:
-   - Use view `badges:` at the top of the view for quick at-a-glance status indicators (temperature, humidity, people home, doors/windows open, security alarm state).
-4. **Dynamic Visibility (`visibility:`)**:
-   - Use card or section `visibility:` conditions to surface alerts (e.g. only show "Open Windows" or "Low Batteries" when active).
+### 3. Quick Toggle / Action Button Card
+```yaml
+type: button
+name: "Toggle All Lights"
+icon: mdi:power
+tap_action:
+  action: call-service
+  service: light.toggle
+  target:
+    entity_id: all
+```
 
-## Step 4: Safe Application of Dashboard Changes
-- **For YAML Dashboards**:
-  - Edit or create the `.yaml` file (e.g., `/homeassistant/dashboards/overview.yaml`) and register it under `lovelace: -> dashboards:` in `configuration.yaml` if new.
-- **For Storage Dashboards (`.storage/lovelace*`)**:
-  - Always back up the `.storage/lovelace*` file to `/data/backups/` before modifying it.
-  - Validate that the resulting file is strictly valid JSON using `jq empty <file>`.
+### 4. Sensor Gauge Widget
+```yaml
+type: gauge
+entity: sensor.outdoor_temperature
+name: "Outdoor Temp"
+min: -10
+max: 45
+needle: true
+severity:
+  green: 18
+  yellow: 26
+  red: 32
+```
+
+---
+
+## Step 3: Creating a New Dashboard Page (Sections View)
+A complete modern sections view for a room or functional page:
+
+```yaml
+title: "Living Room"
+path: "living-room"
+icon: mdi:sofa
+type: sections
+max_columns: 3
+badges:
+  - type: entity
+    entity: sensor.living_room_temperature
+  - type: entity
+    entity: sensor.living_room_humidity
+sections:
+  - title: "Lighting"
+    cards:
+      - type: tile
+        entity: light.living_room_main
+        features:
+          - type: light-brightness
+      - type: tile
+        entity: light.living_room_lamp
+  - title: "Climate & Air"
+    cards:
+      - type: tile
+        entity: climate.living_room_ac
+        features:
+          - type: climate-hvac-modes
+  - title: "Media & Power"
+    cards:
+      - type: media-control
+        entity: media_player.living_room_tv
+```
+
+## Step 4: Storage Dashboard Updates
+When editing `.storage/lovelace*`:
+1. Create a quick backup:
+   ```bash
+   cp /homeassistant/.storage/lovelace /data/backups/lovelace.$(date +%s).bak 2>/dev/null || true
+   ```
+2. Verify JSON integrity after edits:
+   ```bash
+   jq empty /homeassistant/.storage/lovelace
+   ```
+3. Reload Lovelace frontend:
+   ```bash
+   ha-api reload themes
+   ```

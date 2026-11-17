@@ -2,59 +2,63 @@
 name: ha-diagnostics
 description: >-
   Diagnose Home Assistant errors, unavailable entities, broken automations, database
-  bloat, slow startups, and configuration validation failures. Activate this skill when
-  the user asks to fix an issue, check logs, or audit their Home Assistant setup.
+  bloat, integration issues, and configuration validation failures. Activate this skill when
+  the user asks to fix an error, debug an integration, check logs, or audit their setup.
 ---
 
 # Home Assistant Diagnostics & Troubleshooting Skill
 
-## Step 1: Run Health Summary Script
-Run the bundled diagnostic script to get an instant overview of Home Assistant health, configuration status, unavailable entities, and recent error log entries:
+This skill provides ultra-targeted diagnostics to identify and resolve Home Assistant issues with minimum log and token dumping.
+
+## Golden Rules for Efficient Diagnostics
+1. **Never fetch the entire error log raw**: Use `ha-api logs --tail 30 --level error` or grep for specific integrations.
+2. **Target specific devices/integrations**: Filter directly rather than broad context scans.
+
+---
+
+## 1. Targeted Error Debugging by Integration or Device
+
+### A. Debug an Error of a Specific Integration
+To debug an issue with an integration (e.g. `zha`, `zigbee2mqtt`, `tuya`, `esphome`, `mqtt`, `telegram`):
 ```bash
-/root/.gemini/config/skills/ha-diagnostics/scripts/ha_health_report.sh
+# Filter recent logs specifically for that integration name:
+ha-api logs --tail 40 | grep -i "<integration_name>"
+
+# Or search live core log:
+grep -i "<integration_name>" /homeassistant/home-assistant.log | tail -n 35
 ```
 
-## Step 2: Targeted Investigation
+### B. Debug General Home Assistant Startup or System Errors
+```bash
+# Fetch only the last 30 error/warning messages:
+ha-api logs --tail 30 --level error
 
-### A. Configuration & YAML Errors
-1. Validate configuration with Home Assistant Core:
-   ```bash
-   ha-api check
-   # or
-   ha core check
-   ```
-2. Run `yamllint` on modified YAML files to catch indentation or duplicate key issues:
-   ```bash
-   yamllint /homeassistant/automations.yaml
-   ```
+# Validate YAML syntax and configuration:
+ha-api check
+```
 
-### B. Unavailable / Unknown Entities
-1. Find all entities currently in `unavailable` or `unknown` state:
-   ```bash
-   ha-api states | awk '$2 == "unavailable" || $2 == "unknown"'
-   ```
-2. Cross-reference those entity IDs against `/homeassistant/automations.yaml`, `/homeassistant/scripts.yaml`, and dashboard files using `rg`:
-   ```bash
-   rg "<entity_id>" /homeassistant/*.yaml /homeassistant/automations* /homeassistant/dashboards*
-   ```
+---
 
-### C. Error Log & Integration Troubleshooting
-1. Fetch the live error log:
-   ```bash
-   ha-api error-log | tail -n 100
-   ```
-2. Filter for `ERROR` or `WARNING` lines in `/homeassistant/home-assistant.log`:
-   ```bash
-   rg -i "error|warning|exception" /homeassistant/home-assistant.log | tail -n 80
-   ```
+## 2. Diagnosing Device & Entity Issues
 
-### D. Recorder Database Size & High-Frequency Entities
-If the user reports slow history/logbook loading or disk space issues:
-1. Check `/homeassistant/home-assistant_v2.db` size:
-   ```bash
-   ls -lh /homeassistant/home-assistant_v2.db*
-   ```
-2. Query top noisy entities in SQLite (read-only):
-   ```bash
-   sqlite3 -readonly /homeassistant/home-assistant_v2.db "SELECT sm.entity_id, COUNT(*) as cnt FROM states s JOIN states_meta sm ON s.metadata_id = sm.metadata_id GROUP BY s.metadata_id ORDER BY cnt DESC LIMIT 15;"
-   ```
+### Find Offline / Unavailable Entities
+```bash
+awk -F'\t' '$2 == "unavailable" || $2 == "unknown" { print $1 " -> " $2 " (" $3 ")" }' /tmp/ha_entity_cache.tsv 2>/dev/null || ha-api states --compact | grep -E "unavailable|unknown"
+```
+
+### Check If an Entity is Referenced in Broken Automations/Scripts
+```bash
+rg "<entity_id>" /homeassistant/automations.yaml /homeassistant/scripts.yaml /homeassistant/configuration.yaml
+```
+
+---
+
+## 3. Database & Performance Issues
+If system is sluggish or disk space is running out:
+```bash
+# Check database file size:
+ls -lh /homeassistant/home-assistant_v2.db*
+
+# Find top 10 most frequent state changers:
+sqlite3 -readonly /homeassistant/home-assistant_v2.db "SELECT sm.entity_id, COUNT(*) as cnt FROM states s JOIN states_meta sm ON s.metadata_id = sm.metadata_id GROUP BY s.metadata_id ORDER BY cnt DESC LIMIT 10;" 2>/dev/null || echo "SQLite check completed."
+```

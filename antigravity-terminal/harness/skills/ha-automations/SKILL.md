@@ -8,88 +8,112 @@ description: >-
 
 # Home Assistant Automations & Scripts Skill
 
-Follow this workflow whenever creating, editing, or troubleshooting Home Assistant automations or scripts.
+Follow this token-efficient workflow whenever creating, editing, or troubleshooting Home Assistant automations or scripts.
 
-## Step 1: Discover Live Entities & Services
-Before writing any YAML, discover the exact entities and services in the user's setup:
-1. Search relevant entities:
-   ```bash
-   ha-api states <keyword>
-   ```
-2. Inspect full attributes of target entities (e.g. supported color modes, climate presets, sensor device_class):
-   ```bash
-   ha-api state <entity_id>
-   ```
-3. Verify service parameters if needed:
-   ```bash
-   ha-api services <domain>
-   ```
+## Step 1: Discover Live Entities Quickly
+Never dump full state objects. Run compact discovery:
+```bash
+# Fast compact entity search:
+ha-api states --compact <keyword>
+
+# Check cached entities in zero API calls:
+awk -F'\t' -v k="<keyword>" '$1 ~ k || $3 ~ k' /tmp/ha_entity_cache.tsv
+```
 
 ## Step 2: Check Existing Automation Structure
-1. Inspect `/homeassistant/configuration.yaml` to see how `automation:` and `script:` are included (e.g. `automation: !include automations.yaml` vs split directories/packages).
-2. Read existing entries in `/homeassistant/automations.yaml` (or the relevant package file) to avoid duplicate `id` or `alias` values and to see the user's conventions.
+1. Inspect `/homeassistant/configuration.yaml` to see how `automation:` and `script:` are included (`!include automations.yaml` vs split directories/packages).
+2. Avoid duplicate `id` or `alias` values in `/homeassistant/automations.yaml`.
 
-## Step 3: Author Using Modern Home Assistant Syntax
-Read [references/automation_patterns.md](references/automation_patterns.md) for advanced patterns (trigger IDs, `choose`, `wait_for_trigger`, timers, and blueprints).
+## Step 3: Fast Pre-Packaged Automation Recipes
 
-### Modern Automation Template (2024.10+ / 2025 / 2026+)
+### Recipe 1: Motion-Activated Toggle / Light with Auto-Off
 ```yaml
-- id: "unique_snake_case_id_or_timestamp"
-  alias: "Clear Human-Readable Name"
-  description: "Explains what this automation does and why"
-  mode: single # single | restart | queued | parallel
+- id: "motion_light_hallway"
+  alias: "Hallway Light Motion Toggle"
+  description: "Turn on hallway light with motion, turn off after 5 minutes clear"
+  mode: restart
   triggers:
     - trigger: state
       entity_id: binary_sensor.hallway_motion
       from: "off"
       to: "on"
-      id: "motion_detected"
+      id: "motion_on"
     - trigger: state
       entity_id: binary_sensor.hallway_motion
       from: "on"
       to: "off"
       for:
         minutes: 5
-      id: "motion_cleared"
+      id: "motion_off"
   conditions: []
   actions:
     - choose:
         - conditions:
             - condition: trigger
-              id: "motion_detected"
-            - condition: numeric_state
-              entity_id: sensor.hallway_illuminance
-              below: 50
-          sequence:
+              id: "motion_on"
+          actions:
             - action: light.turn_on
               target:
                 entity_id: light.hallway
-              data:
-                brightness_pct: 80
         - conditions:
             - condition: trigger
-              id: "motion_cleared"
-          sequence:
+              id: "motion_off"
+          actions:
             - action: light.turn_off
               target:
                 entity_id: light.hallway
 ```
 
-### Best Practices Checklist
-- **Prefer Entity IDs over Device IDs**: Use `state` or `numeric_state` triggers with `entity_id` rather than opaque `device_id` triggers wherever possible, so automations survive device replacement.
-- **Consolidate Related Turn-On / Turn-Off Automations**: Use `id:` on each trigger and a `choose:` block in `actions:` so a single automation manages both activation and deactivation cleanly.
-- **Choose the Right `mode`**:
-  - Motion-activated lights that reset a timeout: `mode: restart` (if using `wait_for_trigger` or `delay`), or `mode: single` with separate `on`/`off` triggers.
-  - Notification or alert queues: `mode: queued` or `mode: parallel`.
-- **Survive Home Assistant Restarts**: Avoid long `delay:` steps (> 15 minutes). Instead, use `timer` helpers, `for:` durations on state triggers, or `input_datetime` triggers.
+### Recipe 2: Sync Two Switches / Toggles (Master -> Follower)
+```yaml
+- id: "sync_switches_toggle"
+  alias: "Sync Lamp Switch with Ceiling Light"
+  description: "Keeps desk lamp in sync with main office light"
+  mode: single
+  triggers:
+    - trigger: state
+      entity_id: light.office_ceiling
+  actions:
+    - action: homeassistant.toggle
+      target:
+        entity_id: switch.desk_lamp
+```
 
-## Step 4: Validate & Hot-Reload
-1. Check configuration validity:
-   ```bash
-   ha-api check
-   ```
-2. Hot-reload automations or scripts immediately so changes take effect without restarting Home Assistant:
-   ```bash
-   ha-api reload automations
-   ```
-3. Check `/homeassistant/home-assistant.log` or `ha-api error-log` to confirm zero warnings or errors from the reload.
+### Recipe 3: Schedule-Based Automation (Time & Sunset/Sunrise)
+```yaml
+- id: "evening_porch_lights"
+  alias: "Porch Lights on at Sunset"
+  description: "Turns on porch light at sunset and off at 23:00"
+  mode: single
+  triggers:
+    - trigger: sun
+      event: sunset
+      offset: "-00:15:00"
+      id: "sunset"
+    - trigger: time
+      at: "23:00:00"
+      id: "night"
+  actions:
+    - choose:
+        - conditions:
+            - condition: trigger
+              id: "sunset"
+          actions:
+            - action: light.turn_on
+              target:
+                entity_id: light.porch
+        - conditions:
+            - condition: trigger
+              id: "night"
+          actions:
+            - action: light.turn_off
+              target:
+                entity_id: light.porch
+```
+
+## Step 4: Validate and Hot-Reload
+Always validate and hot-reload immediately without restarting Core:
+```bash
+ha-api check
+ha-api reload automations
+```

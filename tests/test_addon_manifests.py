@@ -176,7 +176,14 @@ class TestAddonManifests(unittest.TestCase):
 
     def test_harness_skills_frontmatter(self):
         skills_dir = ADDON_DIR / "harness" / "skills"
-        expected_skills = {"ha-automations", "ha-dashboards", "ha-diagnostics"}
+        expected_skills = {
+            "ha-automations",
+            "ha-dashboards",
+            "ha-diagnostics",
+            "ha-device-control",
+            "ha-notifications",
+            "ha-helpers",
+        }
         found_skills = set()
 
         for skill_md in skills_dir.glob("*/SKILL.md"):
