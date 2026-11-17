@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.4
+
+- **PreInvocation Prompt Router**: Added zero-token shortcut routing via lifecycle hook (`user_prompt_router.sh`) that intercepts trivial operations (`/toggle`, `toggle`, `/reload`, `reload`, `/status`, `/debug`, `turn on/off`) and executes them directly via `ha-api`, burning 0 LLM tokens and returning instant responses.
+- **New Modular Skills**:
+  - `ha-device-control`: Quick toggles, parameter calls, system-wide battery level checks, and offline entity discovery.
+  - `ha-notifications`: Telegram bot alerts, photo snapshot sending, and actionable companion push notifications.
+  - `ha-helpers`: Creation and management of `input_boolean`, `input_select`, `input_number`, and `timer` helpers with instant zero-restart reload.
+- **Enhanced Core Skills**: Upgraded `ha-automations`, `ha-dashboards`, and `ha-diagnostics` with pre-packaged recipes, compact table outputs, and targeted integration log filtering.
+- **`ha-api` Optimizations**:
+  - Added direct `toggle <entity_id>` and `quick-call <domain.service> [entity_id]`.
+  - Added `--compact` flag to `ha-api states` (outputs only entity ID and state).
+  - Added `--tail` and `--level` flags to `ha-api logs`.
+  - Added persistent local entity cache at `/tmp/ha_entity_cache.tsv` warmed at session startup.
+
 ## 1.0.3
 
 - Corrected Home Assistant configuration path from `/config` to `/homeassistant` across `GEMINI.md`, skills (`ha-automations`, `ha-dashboards`, `ha-diagnostics`), rules, and hooks, aligning with modern Home Assistant `homeassistant_config:rw` mount layout (with a `/config` symlink for backward compatibility).
