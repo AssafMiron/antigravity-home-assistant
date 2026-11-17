@@ -29,23 +29,52 @@
 
 ## Built-in CLI Helpers (`ha-api` & `ha`)
 
-Inside the terminal, both you and Antigravity can use `ha-api` to interact with the live Home Assistant Core API:
+Inside the terminal, both you and Antigravity can use `ha-api` to interact with the live Home Assistant Core API with minimal token consumption:
 
 ```bash
-# List all entities or filter by domain/keyword
-ha-api entities light
-ha-api states kitchen
+# Direct fast toggle (lights, switches, helpers, covers, locks)
+ha-api toggle light.kitchen
+
+# Direct quick service call
+ha-api quick-call light.turn_on light.living_room
+
+# Compact entity states (entity_id and state only)
+ha-api states --compact light
 
 # Inspect full JSON state & attributes of an entity
 ha-api state climate.living_room
 
+# Filtered error logs (default: last 30 lines)
+ha-api logs --tail 30 --level error
+
 # Test a Jinja2 template against live Home Assistant state
 ha-api template '{{ states("sensor.outdoor_temperature") }}'
 
-# Validate configuration and hot-reload automations without restarting HA
+# Validate configuration and hot-reload without restarting HA
 ha-api check
-ha-api reload automations
+ha-api reload automations # or: scripts, scenes, helpers, all
 ```
+
+## Built-in Skills & Token-Efficient Workflows
+
+The harness includes 6 dedicated skills optimized for low-token, single-turn execution:
+- **`ha-device-control`**: Fast toggles, service calls, battery level checks, unavailable device scans.
+- **`ha-notifications`**: Telegram bot and Mobile App push alert setup and message dispatching.
+- **`ha-helpers`**: Creating and configuring `input_boolean`, `input_select`, `input_number`, and `timer` helpers.
+- **`ha-automations`**: Motion toggles, switch synchronization, and schedule-based automations with instant hot-reload.
+- **`ha-dashboards`**: Lovelace Sections views, Tile cards, climate controls, and widget generators.
+- **`ha-diagnostics`**: Integration-specific error grepping, system startup checks, and database health audits.
+
+## Recommended Slash Commands & Shortcuts
+
+Inside the `agy` CLI, use these shortcuts or prompt patterns for immediate, low-cost execution:
+- `/toggle <entity_id>`: Instantly toggles an entity (`ha-api toggle <entity_id>`).
+- `/status [filter]`: Displays a compact summary of matching entities without querying all states.
+- `/debug [integration]`: Tails only the relevant error log entries for that integration.
+- `/helper <type> <name>`: Scaffolds and reloads an input helper without restart.
+- `/reload`: Hot-reloads automations, scripts, scenes, and helpers.
+
+To reduce token costs by up to 70-80%, keep your active model set to **Gemini Flash** for routine daily commands, only escalating to larger models for intricate blueprints or complex Jinja2 architecture.
 
 ## Restoring Automatic Backups
 
