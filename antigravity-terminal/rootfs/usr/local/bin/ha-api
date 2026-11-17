@@ -2,11 +2,14 @@
 # ==============================================================================
 # ha-api — Lightweight helper CLI for Home Assistant Core REST API
 # Uses SUPERVISOR_TOKEN to query states, entities, services, config, and logs.
+# Includes local TSV caching and compact modes to minimize token usage.
 # ==============================================================================
 set -e
 
 API_BASE="${HA_API_BASE:-http://supervisor/core/api}"
 SUP_BASE="${HA_SUP_BASE:-http://supervisor}"
+CACHE_FILE="${HA_CACHE_FILE:-/tmp/ha_entity_cache.tsv}"
+CACHE_TTL_SEC="${HA_CACHE_TTL:-120}"
 
 if [ -z "${SUPERVISOR_TOKEN}" ] && [ -f /etc/profile.d/antigravity-ha.sh ]; then
     # shellcheck disable=SC1091
@@ -25,29 +28,61 @@ auth_curl() {
         "$@"
 }
 
+format_tsv() {
+    if command -v column >/dev/null 2>&1 && [ "${HA_API_NO_COLUMN:-}" != "1" ]; then
+        column -t -s $'\t'
+    else
+        awk -F'\t' '{ printf "%-40s %-15s %s\n", $1, $2, $3 }'
+    fi
+}
+
+refresh_cache_if_needed() {
+    local now
+    now=$(date +%s)
+    local mtime=0
+    if [ -f "${CACHE_FILE}" ]; then
+        if stat -f %m "${CACHE_FILE}" >/dev/null 2>&1; then
+            mtime=$(stat -f %m "${CACHE_FILE}")
+        else
+            mtime=$(stat -c %Y "${CACHE_FILE}" 2>/dev/null || echo 0)
+        fi
+    fi
+
+    local age=$((now - mtime))
+    if [ ! -f "${CACHE_FILE}" ] || [ "${age}" -ge "${CACHE_TTL_SEC}" ] || [ "${1:-}" = "--force" ]; then
+        auth_curl "${API_BASE}/states" | jq -r '
+            .[] | "\(.entity_id)\t\(.state)\t\(.attributes.friendly_name // "")"
+        ' 2>/dev/null > "${CACHE_FILE}.tmp" && mv -f "${CACHE_FILE}.tmp" "${CACHE_FILE}" || true
+    fi
+}
+
 usage() {
     cat <<EOF
 Usage: ha-api <command> [arguments]
 
 Commands:
-  states [domain_or_filter]      List entity states (compact table: entity_id, state, friendly_name)
+  toggle <entity_id>             Fast direct toggle (switches, lights, input_booleans, etc.)
+  quick-call <domain.svc> [ent]  Quick service call with optional entity_id (e.g. ha-api quick-call light.turn_on light.living_room)
+  states [--compact] [filter]    List entity states (compact table or ID+state only)
   state <entity_id>              Get full JSON state and attributes for a single entity
-  entities [domain]              List entity IDs (optionally filtered by domain, e.g., 'light', 'sensor')
+  entities [domain]              List entity IDs (optionally filtered by domain)
   services [domain]              List available services (optionally filtered by domain)
-  call <domain.service> ['json'] Call a Home Assistant service with optional JSON payload
+  call <domain.service> ['json'] Call a Home Assistant service with JSON payload
   template '<jinja_template>'    Render a Home Assistant Jinja2 template against live state
   check                          Validate Home Assistant configuration via Core API
-  reload <target>                Reload config: automations | scripts | scenes | groups | themes | all
-  error-log                      Fetch the Home Assistant Core error log
+  reload <target>                Reload config: automations | scripts | scenes | groups | themes | helpers | all
+  logs [--tail N] [--level L]    Fetch and filter Home Assistant Core error log (default: 30 lines)
+  error-log                      Alias for logs
   dashboards                     List Lovelace dashboards and views
+  cache [refresh|show]           Inspect or update local entity cache (/tmp/ha_entity_cache.tsv)
   raw <GET|POST> <endpoint> [d]  Make a raw request to http://supervisor/core/api/<endpoint>
 
 Examples:
-  ha-api states light
-  ha-api state sensor.living_room_temperature
-  ha-api call light.turn_on '{"entity_id": "light.kitchen", "brightness_pct": 80}'
-  ha-api template '{{ states("sensor.outside_temp") }}'
-  ha-api reload automations
+  ha-api toggle light.kitchen
+  ha-api quick-call input_boolean.turn_on input_boolean.guest_mode
+  ha-api states --compact light
+  ha-api logs --tail 25 --level error
+  ha-api cache refresh
 EOF
 }
 
@@ -55,24 +90,82 @@ CMD="${1:-help}"
 shift || true
 
 case "${CMD}" in
-    states)
-        FILTER="${1:-}"
-        format_tsv() {
-            if command -v column >/dev/null 2>&1 && [ "${HA_API_NO_COLUMN:-}" != "1" ]; then
-                column -t -s $'\t'
-            else
-                awk -F'\t' '{ printf "%-40s %-15s %s\n", $1, $2, $3 }'
-            fi
-        }
-        if [ -n "${FILTER}" ]; then
-            auth_curl "${API_BASE}/states" | jq -r --arg f "${FILTER}" '
-                .[] | select(.entity_id | contains($f)) |
-                "\(.entity_id)\t\(.state)\t\(.attributes.friendly_name // "")"
-            ' | format_tsv
+    toggle)
+        ENTITY="${1:?Error: entity_id required (e.g. ha-api toggle light.kitchen)}"
+        DOMAIN="${ENTITY%%.*}"
+        PAYLOAD=$(jq -n --arg ent "${ENTITY}" '{entity_id: $ent}')
+        
+        # Determine appropriate service
+        SVC="toggle"
+        case "${DOMAIN}" in
+            light|switch|input_boolean|cover|fan|media_player|automation)
+                auth_curl -X POST -d "${PAYLOAD}" "${API_BASE}/services/${DOMAIN}/toggle" | jq -c '.[] | {entity_id: .entity_id, state: .state}' 2>/dev/null || echo "Toggled ${ENTITY}"
+                ;;
+            lock)
+                # Toggle lock between lock/unlock based on current state
+                CUR_STATE=$(auth_curl "${API_BASE}/states/${ENTITY}" | jq -r '.state' 2>/dev/null || echo "locked")
+                if [ "${CUR_STATE}" = "locked" ]; then
+                    auth_curl -X POST -d "${PAYLOAD}" "${API_BASE}/services/lock/unlock" | jq -c '.[] | {entity_id: .entity_id, state: .state}' 2>/dev/null || echo "Unlocked ${ENTITY}"
+                else
+                    auth_curl -X POST -d "${PAYLOAD}" "${API_BASE}/services/lock/lock" | jq -c '.[] | {entity_id: .entity_id, state: .state}' 2>/dev/null || echo "Locked ${ENTITY}"
+                fi
+                ;;
+            *)
+                # Generic fallback to homeassistant.toggle
+                auth_curl -X POST -d "${PAYLOAD}" "${API_BASE}/services/homeassistant/toggle" | jq -c '.[] | {entity_id: .entity_id, state: .state}' 2>/dev/null || echo "Toggled ${ENTITY}"
+                ;;
+        esac
+        ;;
+
+    quick-call)
+        TARGET="${1:?Error: domain.service required (e.g. ha-api quick-call light.turn_on light.living_room)}"
+        ENTITY="${2:-}"
+        DOMAIN="${TARGET%%.*}"
+        SERVICE="${TARGET#*.}"
+        if [ -n "${ENTITY}" ]; then
+            PAYLOAD=$(jq -n --arg ent "${ENTITY}" '{entity_id: $ent}')
         else
-            auth_curl "${API_BASE}/states" | jq -r '
-                .[] | "\(.entity_id)\t\(.state)\t\(.attributes.friendly_name // "")"
-            ' | format_tsv
+            PAYLOAD="{}"
+        fi
+        auth_curl -X POST -d "${PAYLOAD}" "${API_BASE}/services/${DOMAIN}/${SERVICE}" | jq -c '.[] | {entity_id: .entity_id, state: .state}' 2>/dev/null || echo "Called ${TARGET}"
+        ;;
+
+    states)
+        COMPACT_MODE=0
+        FILTER=""
+        while [ "$#" -gt 0 ]; do
+            case "$1" in
+                --compact|-c)
+                    COMPACT_MODE=1
+                    shift
+                    ;;
+                *)
+                    FILTER="$1"
+                    shift
+                    ;;
+            esac
+        done
+
+        refresh_cache_if_needed
+
+        if [ -f "${CACHE_FILE}" ]; then
+            DATA_SRC="cat ${CACHE_FILE}"
+        else
+            DATA_SRC="auth_curl ${API_BASE}/states | jq -r '.[] | \"\(.entity_id)\t\(.state)\t\(.attributes.friendly_name // \"\")\"'"
+        fi
+
+        if [ "${COMPACT_MODE}" -eq 1 ]; then
+            if [ -n "${FILTER}" ]; then
+                eval "${DATA_SRC}" | awk -F'\t' -v f="${FILTER}" '$1 ~ f || $3 ~ f { printf "%-40s %s\n", $1, $2 }'
+            else
+                eval "${DATA_SRC}" | awk -F'\t' '{ printf "%-40s %s\n", $1, $2 }'
+            fi
+        else
+            if [ -n "${FILTER}" ]; then
+                eval "${DATA_SRC}" | awk -F'\t' -v f="${FILTER}" '$1 ~ f || $3 ~ f' | format_tsv
+            else
+                eval "${DATA_SRC}" | format_tsv
+            fi
         fi
         ;;
 
@@ -83,12 +176,19 @@ case "${CMD}" in
 
     entities)
         DOMAIN="${1:-}"
-        if [ -n "${DOMAIN}" ]; then
-            auth_curl "${API_BASE}/states" | jq -r --arg d "${DOMAIN}." '
-                .[].entity_id | select(startswith($d))
-            ' | sort
+        refresh_cache_if_needed
+        if [ -f "${CACHE_FILE}" ]; then
+            if [ -n "${DOMAIN}" ]; then
+                awk -F'\t' -v d="^${DOMAIN}\\." '$1 ~ d { print $1 }' "${CACHE_FILE}" | sort
+            else
+                awk -F'\t' '{ print $1 }' "${CACHE_FILE}" | sort
+            fi
         else
-            auth_curl "${API_BASE}/states" | jq -r '.[].entity_id' | sort
+            if [ -n "${DOMAIN}" ]; then
+                auth_curl "${API_BASE}/states" | jq -r --arg d "${DOMAIN}." '.[].entity_id | select(startswith($d))' | sort
+            else
+                auth_curl "${API_BASE}/states" | jq -r '.[].entity_id' | sort
+            fi
         fi
         ;;
 
@@ -106,7 +206,7 @@ case "${CMD}" in
         PAYLOAD="${2:-{}}"
         DOMAIN="${TARGET%%.*}"
         SERVICE="${TARGET#*.}"
-        auth_curl -X POST -d "${PAYLOAD}" "${API_BASE}/services/${DOMAIN}/${SERVICE}" | jq .
+        auth_curl -X POST -d "${PAYLOAD}" "${API_BASE}/services/${DOMAIN}/${SERVICE}" | jq -c .
         ;;
 
     template)
@@ -124,32 +224,63 @@ case "${CMD}" in
         TARGET="${1:-automations}"
         case "${TARGET}" in
             automations|automation)
-                auth_curl -X POST "${API_BASE}/services/automation/reload" | jq .
+                auth_curl -X POST "${API_BASE}/services/automation/reload" | jq -c .
                 ;;
             scripts|script)
-                auth_curl -X POST "${API_BASE}/services/script/reload" | jq .
+                auth_curl -X POST "${API_BASE}/services/script/reload" | jq -c .
                 ;;
             scenes|scene)
-                auth_curl -X POST "${API_BASE}/services/scene/reload" | jq .
+                auth_curl -X POST "${API_BASE}/services/scene/reload" | jq -c .
                 ;;
             groups|group)
-                auth_curl -X POST "${API_BASE}/services/group/reload" | jq .
+                auth_curl -X POST "${API_BASE}/services/group/reload" | jq -c .
                 ;;
             themes|theme)
-                auth_curl -X POST "${API_BASE}/services/frontend/reload_themes" | jq .
+                auth_curl -X POST "${API_BASE}/services/frontend/reload_themes" | jq -c .
+                ;;
+            helpers|helper|input_boolean|input_number|input_select|input_text|input_datetime|timer|counter)
+                auth_curl -X POST "${API_BASE}/services/input_boolean/reload" 2>/dev/null || true
+                auth_curl -X POST "${API_BASE}/services/input_number/reload" 2>/dev/null || true
+                auth_curl -X POST "${API_BASE}/services/input_select/reload" 2>/dev/null || true
+                auth_curl -X POST "${API_BASE}/services/input_text/reload" 2>/dev/null || true
+                auth_curl -X POST "${API_BASE}/services/timer/reload" 2>/dev/null || true
+                echo '{"status": "helpers_reloaded"}'
                 ;;
             all)
-                auth_curl -X POST "${API_BASE}/services/homeassistant/reload_all" | jq .
+                auth_curl -X POST "${API_BASE}/services/homeassistant/reload_all" | jq -c .
                 ;;
             *)
-                echo "Unknown reload target '${TARGET}'. Use: automations, scripts, scenes, groups, themes, or all." >&2
+                echo "Unknown reload target '${TARGET}'. Use: automations, scripts, scenes, groups, themes, helpers, or all." >&2
                 exit 1
                 ;;
         esac
         ;;
 
     error-log|logs)
-        auth_curl "${API_BASE}/error_log"
+        TAIL_LINES=30
+        FILTER_LEVEL=""
+        while [ "$#" -gt 0 ]; do
+            case "$1" in
+                --tail|-n)
+                    TAIL_LINES="${2:-30}"
+                    shift 2 || shift
+                    ;;
+                --level|-l)
+                    FILTER_LEVEL="${2:-}"
+                    shift 2 || shift
+                    ;;
+                *)
+                    shift
+                    ;;
+            esac
+        done
+
+        LOG_CONTENT=$(auth_curl "${API_BASE}/error_log" 2>/dev/null || true)
+        if [ -n "${FILTER_LEVEL}" ]; then
+            echo "${LOG_CONTENT}" | grep -i "${FILTER_LEVEL}" | tail -n "${TAIL_LINES}"
+        else
+            echo "${LOG_CONTENT}" | tail -n "${TAIL_LINES}"
+        fi
         ;;
 
     dashboards)
@@ -158,6 +289,30 @@ case "${CMD}" in
         [ ! -d "${HA_CONF}" ] && [ -d /config ] && HA_CONF="/config"
         ls -la "${HA_CONF}"/ui-lovelace*.yaml "${HA_CONF}"/dashboards/*.yaml 2>/dev/null || true
         ls -la "${HA_CONF}"/.storage/lovelace* 2>/dev/null || true
+        ;;
+
+    cache)
+        ACTION="${1:-show}"
+        case "${ACTION}" in
+            refresh)
+                refresh_cache_if_needed --force
+                echo "Entity cache refreshed: $(wc -l < "${CACHE_FILE}" 2>/dev/null || echo 0) entities cached in ${CACHE_FILE}"
+                ;;
+            show|status)
+                if [ -f "${CACHE_FILE}" ]; then
+                    echo "Cache file: ${CACHE_FILE}"
+                    echo "Cached entities: $(wc -l < "${CACHE_FILE}")"
+                    echo "Last updated: $(date -r "${CACHE_FILE}" 2>/dev/null || stat -c %y "${CACHE_FILE}" 2>/dev/null || echo 'recent')"
+                    echo "Sample (first 5):"
+                    head -n 5 "${CACHE_FILE}"
+                else
+                    echo "No cache file found at ${CACHE_FILE}. Run 'ha-api cache refresh' to generate."
+                fi
+                ;;
+            *)
+                echo "Usage: ha-api cache [refresh|show]"
+                ;;
+        esac
         ;;
 
     raw)

@@ -156,6 +156,7 @@ class TestShellScriptsAndHooks(unittest.TestCase):
             env = os.environ.copy()
             env["PATH"] = f"{bin_dir}:{env.get('PATH', '')}"
             env["SUPERVISOR_TOKEN"] = "test-token-123"
+            env["HA_CACHE_FILE"] = f"{tmpdir}/ha_entity_cache.tsv"
 
             res = subprocess.run(
                 [str(hook)],
@@ -169,6 +170,7 @@ class TestShellScriptsAndHooks(unittest.TestCase):
             msg = out["injectSteps"][0]["systemMessage"]["systemMessage"]
             self.assertIn("2026.11.1", msg)
             self.assertIn("Total Entities: 2", msg)
+            self.assertTrue(pathlib.Path(env["HA_CACHE_FILE"]).is_file())
 
     def test_ha_api_commands_with_mock_curl(self):
         ha_api = ADDON_DIR / "rootfs/usr/local/bin/ha-api"
@@ -199,7 +201,7 @@ class TestShellScriptsAndHooks(unittest.TestCase):
                 '  */states)\n'
                 '    echo \'[{"entity_id":"light.kitchen","state":"on","attributes":{"friendly_name":"Kitchen Light"}},{"entity_id":"sensor.temp","state":"22.5","attributes":{"friendly_name":"Temperature"}}]\'\n'
                 '    ;;\n'
-                '  */services/light/turn_on)\n'
+                '  */services/light/turn_on|*/services/light/toggle)\n'
                 '    echo \'[{"entity_id":"light.kitchen","state":"on"}]\'\n'
                 '    ;;\n'
                 '  */services/automation/reload)\n'
@@ -282,10 +284,25 @@ class TestShellScriptsAndHooks(unittest.TestCase):
             res = subprocess.run([str(ha_api), "check"], env=env, capture_output=True, text=True, check=True)
             self.assertEqual(json.loads(res.stdout)["result"], "valid")
 
-            # reload automations, scripts, scenes, groups, themes, all & invalid target
-            for target in ("automations", "scripts", "scenes", "groups", "themes", "all"):
+            # reload automations, scripts, scenes, groups, themes, helpers, all & invalid target
+            for target in ("automations", "scripts", "scenes", "groups", "themes", "helpers", "all"):
                 res = subprocess.run([str(ha_api), "reload", target], env=env, capture_output=True, text=True, check=True)
                 self.assertTrue(res.stdout.strip())
+
+            # toggle & quick-call
+            res_toggle = subprocess.run([str(ha_api), "toggle", "light.kitchen"], env=env, capture_output=True, text=True, check=True)
+            self.assertTrue(res_toggle.stdout.strip())
+
+            res_quick = subprocess.run([str(ha_api), "quick-call", "light.turn_on", "light.kitchen"], env=env, capture_output=True, text=True, check=True)
+            self.assertTrue(res_quick.stdout.strip())
+
+            # states --compact
+            res_compact = subprocess.run([str(ha_api), "states", "--compact", "light"], env=env, capture_output=True, text=True, check=True)
+            self.assertIn("light.kitchen", res_compact.stdout)
+
+            # logs --tail and --level
+            res_logs = subprocess.run([str(ha_api), "logs", "--tail", "5", "--level", "error"], env=env, capture_output=True, text=True, check=True)
+            self.assertEqual(res_logs.returncode, 0)
 
             res_bad = subprocess.run([str(ha_api), "reload", "invalid_target"], env=env, capture_output=True, text=True, check=False)
             self.assertNotEqual(res_bad.returncode, 0)
@@ -466,6 +483,57 @@ class TestShellScriptsAndHooks(unittest.TestCase):
             self.assertIn('<div id="terminal"></div>', patched)
             self.assertIn("scanBufferForWrappedUrls", patched)
             self.assertNotIn("agy-oauth-banner", patched)
+
+    def test_user_prompt_router_hook(self):
+        hook = ADDON_DIR / "harness/hooks/user_prompt_router.sh"
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = pathlib.Path(tmpdir)
+            transcript_file = tmp_path / "transcript.jsonl"
+            bin_dir = tmp_path / "bin"
+            bin_dir.mkdir()
+
+            mock_ha_api = bin_dir / "ha-api"
+            mock_ha_api.write_text(
+                '#!/usr/bin/env bash\n'
+                'echo "MOCK_HA_API_CALLED: $@"\n',
+                encoding="utf-8",
+            )
+            mock_ha_api.chmod(mock_ha_api.stat().st_mode | stat.S_IEXEC)
+
+            env = os.environ.copy()
+            env["PATH"] = f"{bin_dir}:{env.get('PATH', '')}"
+
+            # 1. Complex prompt -> pass-through to LLM
+            transcript_file.write_text(
+                json.dumps({"type": "USER_INPUT", "content": "<USER_REQUEST>Design a complex blueprint for humidity</USER_REQUEST>"}) + "\n",
+                encoding="utf-8",
+            )
+            input_payload = json.dumps({"transcriptPath": str(transcript_file)})
+            res = subprocess.run([str(hook)], input=input_payload, env=env, capture_output=True, text=True, check=True)
+            out = json.loads(res.stdout)
+            self.assertEqual(out.get("terminationBehavior"), "")
+
+            # 2. Simple toggle prompt -> short-circuit (0 LLM tokens)
+            transcript_file.write_text(
+                json.dumps({"type": "USER_INPUT", "content": "<USER_REQUEST>/toggle light.kitchen</USER_REQUEST>"}) + "\n",
+                encoding="utf-8",
+            )
+            res = subprocess.run([str(hook)], input=input_payload, env=env, capture_output=True, text=True, check=True)
+            out = json.loads(res.stdout)
+            self.assertEqual(out.get("terminationBehavior"), "terminate")
+            self.assertIn("light.kitchen", out["injectSteps"][0]["systemMessage"]["systemMessage"])
+            self.assertIn("0 LLM tokens burned", out["injectSteps"][0]["systemMessage"]["systemMessage"])
+
+            # 3. Simple reload prompt -> short-circuit
+            transcript_file.write_text(
+                json.dumps({"type": "USER_INPUT", "content": "<USER_REQUEST>/reload automations</USER_REQUEST>"}) + "\n",
+                encoding="utf-8",
+            )
+            res = subprocess.run([str(hook)], input=input_payload, env=env, capture_output=True, text=True, check=True)
+            out = json.loads(res.stdout)
+            self.assertEqual(out.get("terminationBehavior"), "terminate")
+            self.assertIn("automations", out["injectSteps"][0]["systemMessage"]["systemMessage"])
 
     def test_ttyd_run_and_tmux_configuration(self):
         ttyd_run = (ADDON_DIR / "rootfs/etc/services.d/ttyd/run").read_text(encoding="utf-8")
