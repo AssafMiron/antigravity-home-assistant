@@ -8,6 +8,15 @@
       }
     ]
   },
+  "ha-prompt-router": {
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "/root/.gemini/config/hooks/user_prompt_router.sh",
+        "timeout": 10
+      }
+    ]
+  },
   "ha-pre-edit-safety": {
     "PreToolUse": [
       {
