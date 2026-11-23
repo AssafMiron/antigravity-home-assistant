@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.5
+
+- **50,000-Line Terminal Scrollback (`tmux` & Direct Sessions)**:
+  - Enabled `tmux` mouse scrolling (`set -g mouse on`) with auto-exiting `copy-mode -e` (3 lines per tick), a visible amber `SCROLL` status bar indicator (`#{pane_in_mode}`), dedicated non-leaking paging `user-keys`, and OSC 52 drag-to-copy (`MouseDragEnd1Pane` -> `copy-pipe-and-cancel`).
+  - Added `-t scrollback=50000` and `-t disableResizeOverlay=true` to `ttyd` so non-`tmux` sessions also keep 50,000 lines of scrollback without resize overlay flicker.
+- **Mobile Touch Scrolling, Responsive Zoom & Floating Controls**:
+  - Added single-finger mobile touch scrolling with momentum inertia, Home Assistant Companion App pull-to-refresh prevention (`overscroll-behavior: none`), and soft-keyboard auto-dismiss on deliberate upward scroll.
+  - Added responsive per-device font sizing (auto-defaults to `11px` on mobile viewports vs. `14px` on desktop) and live `A−` / `A+` zoom persisted in `localStorage`.
+  - Added a collapsible, focus-preserving floating toolbar (`↕`) with Page Up (`▲`), Page Down (`▼`), Jump to Bottom (`⤓`), Zoom (`A−`/`A+`), and mobile TUI shortcuts (`Ctrl+O` expand/collapse details, `⇧Tab`, `Esc`, `↑`/`↓`/`↵`, `⌨`).
+  - Preserved one-click/tap opening of single-line and multi-line wrapped OAuth links inside `tmux` mouse mode.
+- **Concise Pre-Approval Summaries (`GEMINI.md`)**: Instructs Antigravity to print a brief 3–6 bullet summary (target file, entity/automation name, and trigger/condition/action changes) right before requesting YAML or dashboard edit confirmation.
+
 ## 1.0.4
 
 - **PreInvocation Prompt Router**: Added zero-token shortcut routing via lifecycle hook (`user_prompt_router.sh`) that intercepts trivial operations (`/toggle`, `toggle`, `/reload`, `reload`, `/status`, `/debug`, `turn on/off`) and executes them directly via `ha-api`, burning 0 LLM tokens and returning instant responses.

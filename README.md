@@ -24,7 +24,7 @@ Inspired by [`heytcass/home-assistant-addons`](https://github.com/heytcass/home-
 
 ## ✨ Features
 
-- **🖥️ Embedded Web Terminal via Ingress**: Open Antigravity directly from your Home Assistant sidebar (`ttyd` + `tmux` persistent sessions that survive browser tab refreshes).
+- **🖥️ Embedded Web Terminal via Ingress**: Open Antigravity directly from your Home Assistant sidebar (`ttyd` + `tmux` persistent sessions with 50,000-line scrollback, mobile touch scrolling, zoom, and floating controls).
 - **🎨 Custom Antigravity Sidebar Icon**: Automatically injects the distinctive Antigravity arch logo into your Home Assistant sidebar and Ingress interface.
 - **⚡ Zero-Token Prompt Router & Fast Entity Cache**:
   - Automatically caches live entities in `/tmp/ha_entity_cache.tsv` to prevent costly full-API state fetches.
@@ -83,6 +83,9 @@ Click the button below to add this repository directly to your Home Assistant in
    - The terminal runs inside `tmux`. You can safely close your browser tab or navigate away — your session and command history will remain intact when you return.
 4. **Direct Shell Commands**:
    - Prefix any command with `!` (e.g. `!ha-api quick-call light.toggle light.office`) to run directly in bash without LLM token roundtrips.
+5. **Scrolling & Mobile Controls**:
+   - Scroll with your mouse wheel on desktop or swipe with one finger on mobile across up to 50,000 lines of session history (scrolling back to the bottom automatically returns to live input).
+   - Tap the floating **`↕`** toolbar in the top-right corner for **Page Up/Down**, **Jump to Bottom (`⤓`)**, per-device font zoom (**`A−` / `A+`**), and **`Ctrl+O`** to expand collapsed `agy` details on mobile.
 
 ---
 

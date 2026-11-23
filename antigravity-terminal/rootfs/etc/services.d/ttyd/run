@@ -48,6 +48,8 @@ exec ttyd \
     "${INDEX_ARGS[@]}" \
     -t fontSize=14 \
     -t fontFamily="Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace" \
+    -t scrollback=50000 \
+    -t disableResizeOverlay=true \
     -t macOptionClickForcesSelection=true \
     -t theme='{"background":"#0f1419","foreground":"#e6edf3","cursor":"#58a6ff","selectionBackground":"#264f78"}' \
     /usr/local/bin/agy-entrypoint

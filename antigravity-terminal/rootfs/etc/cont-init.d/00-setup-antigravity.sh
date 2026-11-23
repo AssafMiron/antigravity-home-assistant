@@ -117,20 +117,45 @@ fi
 
 chmod +x /etc/profile.d/antigravity-ha.sh
 
-# Configure tmux for persistent sessions while keeping native browser mouse selection & OSC 52 clipboard
+# Configure tmux for persistent sessions, 50,000-line auto-exiting scrollback, and OSC 52 clipboard
 cat <<EOF > /root/.tmux.conf
-set -g mouse off
+set -g mouse on
 set -g set-clipboard on
 set -g allow-passthrough on
 set -as terminal-features ',*:clipboard'
 set -ag terminal-overrides ',*:Ms=\E]52;%p1%s;%p2%s\007'
 set -g history-limit 50000
 set -g default-terminal "screen-256color"
+
+# Auto-exiting scroll/copy mode via mouse wheel or mobile touch gestures (3 lines/tick)
+bind -n WheelUpPane if-shell -F -t = "#{mouse_any_flag}" "send-keys -M" "if-shell -F -t = '#{pane_in_mode}' 'send-keys -M' 'select-pane -t =; copy-mode -e; send-keys -M'"
+bind -n WheelDownPane if-shell -F -t = "#{mouse_any_flag}" "send-keys -M" "if-shell -F -t = '#{pane_in_mode}' 'send-keys -M' ''"
+bind -T copy-mode WheelUpPane select-pane \; send-keys -X -N 3 scroll-up
+bind -T copy-mode WheelDownPane select-pane \; send-keys -X -N 3 scroll-down
+bind -T copy-mode-vi WheelUpPane select-pane \; send-keys -X -N 3 scroll-up
+bind -T copy-mode-vi WheelDownPane select-pane \; send-keys -X -N 3 scroll-down
+bind -T copy-mode MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel
+bind -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel
+
+# Dedicated user-keys for web toolbar paging & bottom jump without leaking keys into TUI apps
+set -s user-keys[0] "\e[998~"
+set -s user-keys[1] "\e[997~"
+set -s user-keys[2] "\e[999~"
+bind -n User0 copy-mode -eu
+bind -n User1 if-shell -F "#{pane_in_mode}" "send-keys -X page-down" ""
+bind -n User2 if-shell -F "#{pane_in_mode}" "send-keys -X cancel" ""
+bind -T copy-mode User0 send-keys -X page-up
+bind -T copy-mode User1 send-keys -X page-down
+bind -T copy-mode User2 send-keys -X cancel
+bind -T copy-mode-vi User0 send-keys -X page-up
+bind -T copy-mode-vi User1 send-keys -X page-down
+bind -T copy-mode-vi User2 send-keys -X cancel
+
 set -g status-bg "#1a73e8"
 set -g status-fg "#ffffff"
 set -g status-left " [Antigravity HA] "
 set -g status-left-length 20
-set -g status-right " ${WORK_DIR_VAL} | %H:%M "
+set -g status-right "#{?pane_in_mode,#[bg=#f0883e fg=#0f1419 bold] SCROLL #[default] ,}${WORK_DIR_VAL} | %H:%M "
 EOF
 
 bashio::log.info "Antigravity Terminal initialization complete."

@@ -76,6 +76,14 @@ Inside the `agy` CLI, use these shortcuts or prompt patterns for immediate, low-
 
 To reduce token costs by up to 70-80%, keep your active model set to **Gemini Flash** for routine daily commands, only escalating to larger models for intricate blueprints or complex Jinja2 architecture.
 
+## Scrolling & Mobile Terminal Controls
+
+The terminal retains up to **50,000 lines** of conversation and command history (both with `use_tmux: true` and `use_tmux: false`):
+
+- **Desktop**: Use your mouse wheel or trackpad to scroll up through earlier prompts and full YAML diffs; scrolling back down to the bottom automatically exits scroll mode (`SCROLL` badge in the status bar disappears). Hold `Option` (macOS) or `Shift` (Windows/Linux) while dragging to select text natively, or drag normally to copy via OSC 52.
+- **Mobile Touch & Zoom**: Swipe up/down with one finger to scroll smoothly (swiping down to read older output automatically hides the on-screen keyboard so more lines fit on screen). Mobile devices default to a compact `11px` font size and remember your zoom preference per device.
+- **Floating Controls (`↕`)**: Use the collapsible top-right toolbar for **Page Up (`▲`)**, **Page Down (`▼`)**, **Jump to Bottom (`⤓`)**, **Zoom (`A−`/`A+`)**, **`Ctrl+O`** (expand/collapse tool and diff output inside `agy`), **`⇧Tab`**, **`Esc`**, arrow/Enter keys, and keyboard toggle (`⌨`).
+
 ## Restoring Automatic Backups
 
 Whenever Antigravity edits an existing file in `/homeassistant`, a timestamped backup is automatically saved to `/data/backups/<YYYY-MM-DD>/` inside the add-on container before the edit is applied.

@@ -545,14 +545,52 @@ class TestShellScriptsAndHooks(unittest.TestCase):
             ttyd_run,
         )
         self.assertNotIn("'JetBrains Mono'", ttyd_run)
+        self.assertIn("-t scrollback=50000", ttyd_run)
+        self.assertIn("-t disableResizeOverlay=true", ttyd_run)
         self.assertIn("--index /usr/share/ttyd/index.html", ttyd_run)
         self.assertIn("/usr/local/bin/login-url-watcher", ttyd_run)
 
-        # Verify tmux mouse hijacking is disabled and BROWSER / xdg-open is NOT exported
-        self.assertIn("set -g mouse off", setup_script)
+        # Verify tmux auto-exiting scrollback, user-keys, and status badge, and no BROWSER / xdg-open
+        self.assertIn("set -g mouse on", setup_script)
+        self.assertNotIn("set -g mouse off", setup_script)
+        for expected_tmux_token in (
+            "copy-mode -e",
+            "WheelUpPane",
+            "WheelDownPane",
+            "MouseDragEnd1Pane",
+            "copy-pipe-and-cancel",
+            "user-keys[0]",
+            "user-keys[1]",
+            "user-keys[2]",
+            "pane_in_mode",
+        ):
+            self.assertIn(expected_tmux_token, setup_script)
         self.assertNotIn("BROWSER", setup_script)
         self.assertNotIn("xdg-open", setup_script)
         self.assertFalse((ADDON_DIR / "rootfs/usr/local/bin/xdg-open").exists())
+
+        # Render the /root/.tmux.conf heredoc via bash to confirm escapes and formats survive intact
+        start_marker = "cat <<EOF > /root/.tmux.conf\n"
+        start_idx = setup_script.index(start_marker) + len(start_marker)
+        end_idx = setup_script.index("\nEOF", start_idx)
+        tmux_heredoc = setup_script[start_idx:end_idx]
+
+        rendered = subprocess.run(
+            ["bash", "-c", f'WORK_DIR_VAL="/homeassistant"\ncat <<EOF\n{tmux_heredoc}\nEOF'],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        self.assertIn("set -g mouse on", rendered)
+        self.assertIn(r"bind -T copy-mode WheelUpPane select-pane \; send-keys -X -N 3 scroll-up", rendered)
+        self.assertIn(r'set -s user-keys[0] "\e[998~"', rendered)
+        self.assertIn(r'set -s user-keys[1] "\e[997~"', rendered)
+        self.assertIn(r'set -s user-keys[2] "\e[999~"', rendered)
+        self.assertIn(r"set -ag terminal-overrides ',*:Ms=\E]52;%p1%s;%p2%s\007'", rendered)
+        self.assertIn(
+            'set -g status-right "#{?pane_in_mode,#[bg=#f0883e fg=#0f1419 bold] SCROLL #[default] ,}/homeassistant | %H:%M "',
+            rendered,
+        )
 
 
 if __name__ == "__main__":
