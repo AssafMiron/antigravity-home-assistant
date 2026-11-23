@@ -18,6 +18,7 @@ To keep responses lightning fast, accurate, and low-cost:
 - **Single-Turn Action Execution**: For routine device actions (e.g., "turn on living room light", "toggle fan"), execute directly using `ha-api toggle <entity_id>` or `ha-api quick-call <domain.service> <entity_id>` without unnecessary back-and-forth reasoning steps.
 - **Use Cached Entity Lookups**: Lookups are automatically cached at `/tmp/ha_entity_cache.tsv` (columns: `entity_id\tstate\tfriendly_name`). Run `awk` or `grep` against this cache before doing network queries.
 - **Never Dump Full State Tables or Unfiltered Logs**: Always pass `--compact` to `ha-api states` and `--tail 30 --level error` to `ha-api logs`.
+- **Concise Pre-Approval Summaries**: Before requesting user confirmation to modify `automations.yaml`, `scripts.yaml`, `scenes.yaml`, `configuration.yaml`, or Lovelace dashboards, print a brief, scannable summary (3–6 short bullets: target file, automation/entity name, and exact trigger, condition, and action changes) right above the approval prompt so the user can review the full change at a glance — especially on mobile screens.
 
 ---
 
